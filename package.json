@@ -4,13 +4,13 @@
   "adonis-version": "4.1.0",
   "description": "Adonisjs boilerplate for API server with pre-configured JWT",
   "main": "index.js",
-"scripts": {
-  "prestart": "node create-env.js",
-  "start": "node server.js",
-  "migrate": "node create-env.js && node ace migration:run --force",
-  "seed": "node create-env.js && node ace db:seed",
-  "deploy": "npm run migrate && npm run seed && npm start"
-},
+  "scripts": {
+    "prestart": "node create-env.js",
+    "start": "node server.js",
+    "migrate": "node ./node_modules/.bin/adonis migration:refresh --force",
+    "seed": "node ./node_modules/.bin/adonis seed --force",
+    "deploy": "npm run migrate && npm run seed && npm start"
+  },
   "keywords": [
     "adonisjs",
     "adonis-app"
