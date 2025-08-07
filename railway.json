@@ -1,11 +1,11 @@
 {
   "build": {
-    "nixpacks": {
-      "buildCommand": "npm install",
-      "startCommand": "npm start"
-    }
+    "builder": "nixpacks",
+    "buildCommand": "npm install",
+    "startCommand": "npm start"
   },
   "deploy": {
-    "startCommand": "npm run migrate && npm run seed && npm start"
+    "startCommand": "npm start",
+    "preDeployCommand": "npm run migrate && npm run seed"
   }
 }
