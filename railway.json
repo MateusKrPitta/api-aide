@@ -1,7 +1,0 @@
-{
-  "build": {
-    "nixpacks": {
-      "startCommand": "npm start"
-    }
-  }
-}

@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["nodejs_22", "npm-9_x"]
-
-[phases.install]
-commands = ["npm ci"]
-
-[phases.start]
-commands = ["npm start"]  # Alterado para não usar 'railway run'

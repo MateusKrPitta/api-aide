@@ -5,10 +5,10 @@
   "description": "Adonisjs boilerplate for API server with pre-configured JWT",
   "main": "index.js",
   "scripts": {
-    "start": "node --trace-warnings server.js",
+    "prestart": "node create-env.js",
+    "start": "node server.js",
     "test": "node ace test",
     "migrate": "node ace migration:run --force",
-    "migrate:rollback": "node ace migration:rollback",
     "postinstall": "npm prune --omit=dev"
   },
   "keywords": [
@@ -32,7 +32,13 @@
     "kleur": "^4.1.5",
     "luxon": "^3.7.1",
     "pg": "^8.16.2",
-    "pg-hstore": "^2.3.4"
+    "pg-hstore": "^2.3.4",
+    "resolve-url": "^0.2.1",
+    "set-value": "^4.1.0",
+    "source-map-resolve": "^0.6.0",
+    "source-map-url": "^0.4.1",
+    "underscore": "^1.13.7",
+    "urix": "^0.1.0"
   },
   "engines": {
     "node": ">=14.0.0",
