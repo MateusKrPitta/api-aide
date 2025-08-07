@@ -9,8 +9,7 @@
     "test": "node ace test",
     "migrate": "node ace migration:run --force",
     "migrate:rollback": "node ace migration:rollback",
-    "migrate:refresh": "node ace migration:refresh",
-    "make:migration": "node ace make:migration"
+    "postinstall": "npm prune --omit=dev"
   },
   "keywords": [
     "adonisjs",

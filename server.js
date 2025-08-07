@@ -1,5 +1,11 @@
 "use strict";
-require("./create-env.js")(); // Chama explicitamente nosso script
+
+// Carrega variáveis de ambiente
+if (process.env.RAILWAY_ENVIRONMENT) {
+  process.env.NODE_ENV = process.env.NODE_ENV || "production";
+} else {
+  require("dotenv").config();
+}
 
 const { Ignitor } = require("@adonisjs/ignitor");
 
