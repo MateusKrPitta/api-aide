@@ -1,9 +1,12 @@
 "use strict";
-if (process.env.RAILWAY_ENVIRONMENT) {
-  process.env.NODE_ENV = process.env.NODE_ENV || "production";
-} else {
-  require("dotenv").config();
-}
+require("./create-env.js")(); // Chama explicitamente nosso script
+
+const { Ignitor } = require("@adonisjs/ignitor");
+
+new Ignitor(require("@adonisjs/fold"))
+  .appRoot(__dirname)
+  .fireHttpServer()
+  .catch(console.error);
 /*
 |--------------------------------------------------------------------------
 | Http server
