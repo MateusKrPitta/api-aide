@@ -9,6 +9,8 @@
     "start": "node server.js",
     "test": "node ace test",
     "migrate": "node ace migration:run --force",
+    "seed": "node ace db:seed",
+    "deploy": "npm run migrate && npm run seed && npm start",
     "postinstall": "npm prune --omit=dev"
   },
   "keywords": [
