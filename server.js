@@ -7,12 +7,14 @@ if (process.env.RAILWAY_ENVIRONMENT) {
   require("dotenv").config();
 }
 
-const { Ignitor } = require("@adonisjs/ignitor");
-
-new Ignitor(require("@adonisjs/fold"))
-  .appRoot(__dirname)
-  .fireHttpServer()
-  .catch(console.error);
+// Verifique se já existe uma instância do Ignitor
+if (!global.IGNITOR_INSTANCE) {
+  const { Ignitor } = require("@adonisjs/ignitor");
+  global.IGNITOR_INSTANCE = new Ignitor(require("@adonisjs/fold"))
+    .appRoot(__dirname)
+    .fireHttpServer()
+    .catch(console.error);
+}
 /*
 |--------------------------------------------------------------------------
 | Http server

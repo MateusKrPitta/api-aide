@@ -5,7 +5,7 @@
   "description": "Adonisjs boilerplate for API server with pre-configured JWT",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node --trace-warnings server.js",
     "test": "node ace test",
     "migrate": "node ace migration:run --force",
     "migrate:rollback": "node ace migration:rollback",
