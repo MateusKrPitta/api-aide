@@ -1,5 +1,9 @@
-'use strict'
-
+"use strict";
+if (process.env.RAILWAY_ENVIRONMENT) {
+  process.env.NODE_ENV = process.env.NODE_ENV || "production";
+} else {
+  require("dotenv").config();
+}
 /*
 |--------------------------------------------------------------------------
 | Http server
@@ -17,9 +21,9 @@
 |     Make sure to pass a relative path from the project root.
 */
 
-const { Ignitor } = require('@adonisjs/ignitor')
+const { Ignitor } = require("@adonisjs/ignitor");
 
-new Ignitor(require('@adonisjs/fold'))
+new Ignitor(require("@adonisjs/fold"))
   .appRoot(__dirname)
   .fireHttpServer()
-  .catch(console.error)
+  .catch(console.error);
