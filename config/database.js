@@ -19,30 +19,35 @@ module.exports = {
 
   /*
   |--------------------------------------------------------------------------
-  | PostgreSQL
+  | PostgreSQL (Configuração para Railway)
   |--------------------------------------------------------------------------
-  |
-  | Configuração da conexão com o banco PostgreSQL.
-  |
-  | Instale o driver com:
-  | npm i --save pg
-  |
   */
   pg: {
     client: "pg",
     connection: {
-      host: Env.get("DB_HOST", "127.0.0.1"),
-      port: Env.get("DB_PORT", 5432),
-      user: Env.get("DB_USER", "postgres"),
-      password: Env.get("DB_PASSWORD", "postgres"),
-      database: Env.get("DB_DATABASE", "adonis"),
+      host: Env.get("DB_HOST", Env.get("PGHOST")),
+      port: Env.get("DB_PORT", Env.get("PGPORT", 5432)),
+      user: Env.get("DB_USER", Env.get("PGUSER")),
+      password: Env.get("DB_PASSWORD", Env.get("PGPASSWORD")),
+      database: Env.get("DB_DATABASE", Env.get("PGDATABASE")),
+      ssl: {
+        rejectUnauthorized: false, // Necessário para conexões SSL do Railway
+      },
+    },
+    migrations: {
+      tableName: "migrations",
     },
     debug: Env.get("DB_DEBUG", false),
+    pool: {
+      // Configuração recomendada para produção
+      min: 2,
+      max: 10,
+    },
   },
 
   /*
   |--------------------------------------------------------------------------
-  | Sqlite (caso ainda queira para testes)
+  | Sqlite (para desenvolvimento local)
   |--------------------------------------------------------------------------
   */
   sqlite: {
@@ -53,23 +58,6 @@ module.exports = {
       ),
     },
     useNullAsDefault: true,
-    debug: Env.get("DB_DEBUG", false),
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | MySQL (caso use em outro projeto)
-  |--------------------------------------------------------------------------
-  */
-  mysql: {
-    client: "mysql",
-    connection: {
-      host: Env.get("DB_HOST", "127.0.0.1"),
-      port: Env.get("DB_PORT", 3306),
-      user: Env.get("DB_USER", "root"),
-      password: Env.get("DB_PASSWORD", ""),
-      database: Env.get("DB_DATABASE", "adonis"),
-    },
     debug: Env.get("DB_DEBUG", false),
   },
 };
