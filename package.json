@@ -5,14 +5,10 @@
   "description": "Adonisjs boilerplate for API server with pre-configured JWT",
   "main": "index.js",
   "scripts": {
-    "prestart": "node create-env.js && node ace generate:manifest",
+    "prestart": "node create-env.js",
     "start": "node server.js",
-    "migrate": "npm run prestart && node ace migration:run --force",
-    "rollback": "node ace migration:rollback --all --force",
-    "refresh": "node ace migration:rollback --all --force && node ace migration:run --force",
-    "seed": "node ace db:seed --force",
-    "deploy": "npm run migrate && npm run seed && npm start",
-    "full-reset": "npm run refresh && npm run seed && npm start"
+    "migrate": "node ace migration:run --force",
+    "setup": "npm run prestart && npm run migrate && npm start"
   },
   "keywords": [
     "adonisjs",
