@@ -5,8 +5,8 @@
   "description": "Adonisjs boilerplate for API server with pre-configured JWT",
   "main": "index.js",
   "scripts": {
-    "prestart": "node create-env.js",
-    "start": "adonis migration:run && node server.js",
+    "prestart": "adonis migration:run",
+    "start": "node server.js",
     "migrate": "adonis migration:run",
     "rollback": "node ace migration:rollback --all --force",
     "refresh": "node ace migration:rollback --all --force && node ace migration:run --force",
