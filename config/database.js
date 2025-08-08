@@ -9,17 +9,17 @@ module.exports = {
   pg: {
     client: "pg",
     connection: {
-      host: Env.get("DB_HOST"), // Use apenas PG_HOST
+      host: Env.get("DB_HOST"),
       port: Env.get("DB_PORT", 5432),
       user: Env.get("DB_USER"),
       password: Env.get("DB_PASSWORD"),
       database: Env.get("DB_DATABASE"),
       ssl: {
-        rejectUnauthorized: false, // Crucial para Railway
+        rejectUnauthorized: false, // Importante para Railway
       },
     },
     migrations: {
-      tableName: "adonis_migrations", // Padrão do Adonis
+      tableName: "adonis_migrations",
     },
     debug: Env.get("DB_DEBUG", false),
     pool: {
