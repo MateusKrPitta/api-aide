@@ -23,9 +23,10 @@ module.exports = {
     },
     debug: Env.get("DB_DEBUG", false),
     pool: {
-      min: 2,
-      max: 10,
-      idleTimeoutMillis: 30000,
+      min: Env.get("DB_POOL_MIN", 2),
+      max: Env.get("DB_POOL_MAX", 10),
+      acquireTimeoutMillis: Env.get("DB_POOL_ACQUIRE", 30000),
+      idleTimeoutMillis: Env.get("DB_POOL_IDLE", 10000),
     },
   },
 
