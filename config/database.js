@@ -9,11 +9,11 @@ module.exports = {
   pg: {
     client: "pg",
     connection: {
-      host: Env.get("PG_HOST"), // Use apenas PG_HOST
-      port: Env.get("PG_PORT", 5432),
-      user: Env.get("PG_USER"),
-      password: Env.get("PG_PASSWORD"),
-      database: Env.get("PG_DATABASE"),
+      host: Env.get("DB_HOST"), // Use apenas PG_HOST
+      port: Env.get("DB_PORT", 5432),
+      user: Env.get("DB_USER"),
+      password: Env.get("DB_PASSWORD"),
+      database: Env.get("DB_DATABASE"),
       ssl: {
         rejectUnauthorized: false, // Crucial para Railway
       },
