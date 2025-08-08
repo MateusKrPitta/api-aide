@@ -7,7 +7,7 @@
   "scripts": {
     "prestart": "node create-env.js && node ace generate:manifest",
     "start": "node server.js",
-    "migrate": "node ace migration:run --force",
+    "migrate": "npm run prestart && node ace migration:run --force",
     "rollback": "node ace migration:rollback --all --force",
     "refresh": "node ace migration:rollback --all --force && node ace migration:run --force",
     "seed": "node ace db:seed --force",
