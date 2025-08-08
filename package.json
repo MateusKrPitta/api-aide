@@ -7,8 +7,8 @@
   "scripts": {
     "prestart": "node create-env.js",
     "start": "node server.js",
-    "migrate": "node ace migration:run --force",
-    "setup": "npm run prestart && npm run migrate && npm start"
+    "migrate": "node create-env.js && node ace migration:run --force",
+    "setup": "npm run migrate && npm start"
   },
   "keywords": [
     "adonisjs",
