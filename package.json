@@ -6,8 +6,8 @@
   "main": "index.js",
   "scripts": {
     "prestart": "node create-env.js",
-    "start": "./start.sh",
-    "migrate": "adonis migration:run ",
+    "start": "node server.js",
+    "migrate": "node ace migration:run ",
     "rollback": "node ace migration:rollback --all --force",
     "refresh": "node ace migration:rollback --all --force && node ace migration:run --force",
     "seed": "node ace db:seed --force",
