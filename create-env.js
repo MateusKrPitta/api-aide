@@ -17,10 +17,10 @@ DB_PASSWORD=${process.env.PGPASSWORD || process.env.DB_PASSWORD}
 DB_DATABASE=${process.env.PGDATABASE || process.env.DB_DATABASE}
 
 # Configurações extras para evitar timeout
-DB_POOL_MIN=2
-DB_POOL_MAX=10
-DB_POOL_ACQUIRE=30000
-DB_POOL_IDLE=10000
+DB_POOL_MIN=${process.env.DB_POOL_MIN || 2}
+DB_POOL_MAX=${process.env.DB_POOL_MAX || 10}
+DB_POOL_ACQUIRE=${process.env.DB_POOL_ACQUIRE || 30000}
+DB_POOL_IDLE=${process.env.DB_POOL_IDLE || 10000}
 
 HASH_DRIVER=bcrypt
 SESSION_DRIVER=cookie
