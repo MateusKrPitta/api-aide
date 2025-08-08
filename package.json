@@ -7,8 +7,10 @@
   "scripts": {
     "prestart": "node create-env.js",
     "start": "node server.js",
-    "migrate": "node ./node_modules/.bin/adonis migration:refresh --force",
-    "seed": "node ./node_modules/.bin/adonis seed --force",
+    "migrate": "node ace migration:run",
+    "rollback": "node ace migration:rollback --all",
+    "refresh": "node ace migration:rollback --all && node ace migration:run",
+    "seed": "node node_modules/@adonisjs/cli/index.js seed --force",
     "deploy": "npm run migrate && npm run seed && npm start"
   },
   "keywords": [
@@ -22,6 +24,7 @@
     "@adonisjs/ace": "^5.0.8",
     "@adonisjs/auth": "^3.0.7",
     "@adonisjs/bodyparser": "~2.0.9",
+    "@adonisjs/cli": "^4.0.0",
     "@adonisjs/cors": "^1.0.7",
     "@adonisjs/drive": "^3.4.1",
     "@adonisjs/fold": "^4.0.9",
