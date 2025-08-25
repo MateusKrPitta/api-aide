@@ -128,13 +128,23 @@ class PrestadorController {
         "complemento",
       ]);
 
+      // Remover formatação do CPF/CNPJ para evitar conflitos
+      if (data.cpf) {
+        data.cpf = data.cpf.replace(/\D/g, ""); // Remove tudo que não é número
+      }
+
       const servicosIds = request.input("servicos", []);
+
+      // Garantir que servicosIds seja um array
+      const servicosArray = Array.isArray(servicosIds)
+        ? servicosIds
+        : [servicosIds].filter(Boolean);
 
       prestador.merge(data);
       await prestador.save(trx);
 
-      if (servicosIds.length > 0) {
-        await prestador.servicos().sync(servicosIds, null, trx);
+      if (servicosArray.length > 0) {
+        await prestador.servicos().sync(servicosArray, null, trx);
       }
 
       await trx.commit();
@@ -146,12 +156,24 @@ class PrestadorController {
       });
     } catch (error) {
       await trx.rollback();
+
+      // Log mais detalhado do erro
+      console.error("Erro ao atualizar prestador:", error);
+
       return response.status(400).json({
         success: false,
         message: "Falha ao atualizar prestador",
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
         code: "UPDATE_ERROR",
+        details:
+          process.env.NODE_ENV === "development"
+            ? {
+                code: error.code,
+                detail: error.detail,
+                constraint: error.constraint,
+              }
+            : undefined,
       });
     }
   }
