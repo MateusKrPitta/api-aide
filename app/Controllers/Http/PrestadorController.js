@@ -119,6 +119,7 @@ class PrestadorController {
       const data = request.only([
         "nome",
         "telefone",
+        "cpf",
         "email",
         "estado",
         "cidade",
