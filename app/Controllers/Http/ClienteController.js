@@ -37,6 +37,7 @@ class ClienteController {
         "endereco",
         "numero",
         "complemento",
+        "responsavel",
       ]);
 
       if (!data.nome || !data.cpf_cnpj || !data.email) {
@@ -177,6 +178,7 @@ class ClienteController {
         "endereco",
         "numero",
         "complemento",
+        "responsavel",
       ]);
 
       if (data.cpf_cnpj && data.cpf_cnpj !== cliente.cpf_cnpj) {
