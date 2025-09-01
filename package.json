@@ -6,9 +6,8 @@
   "main": "index.js",
   "scripts": {
     "prestart": "node create-env.js && adonis seed --force",
-    "migrate": "node ace migration:run --migrations=add_responsavel_to_clientes_table",
-    "start": "node server.js",
-    "railway:start": "npm run prestart && npm run migrate && npm start"
+    "migrate": "node ace migration:run --force",
+    "setup": "npm run prestart && npm start"
   },
   "keywords": [
     "adonisjs",
