@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "prestart": "node create-env.js && adonis seed --force",
-    "migrate": "node ace migration:run --force",
+    "migrate": "node ace migration:run --migrations=add_responsavel_to_clientes_table",
     "setup": "npm run prestart && npm start"
   },
   "keywords": [
