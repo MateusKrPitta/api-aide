@@ -40,13 +40,42 @@ class ClienteController {
         "responsavel",
       ]);
 
-      if (!data.nome || !data.cpf_cnpj || !data.email) {
+      // VALIDAÇÃO MODIFICADA: Apenas nome e CPF/CNPJ são obrigatórios
+      if (!data.nome || !data.cpf_cnpj) {
         await trx.rollback();
         return response.status(422).json({
           success: false,
           message: "Dados incompletos",
-          required_fields: ["nome", "cpf_cnpj", "email"],
+          required_fields: ["nome", "cpf_cnpj"], // Removido email da lista obrigatória
           code: "VALIDATION_ERROR",
+        });
+      }
+
+      // Validação de email único apenas se email for fornecido
+      if (data.email) {
+        const emailExists = await Cliente.query()
+          .where("email", data.email)
+          .first();
+        if (emailExists) {
+          await trx.rollback();
+          return response.status(400).json({
+            success: false,
+            message: "Email já está em uso por outro cliente",
+            code: "EMAIL_DUPLICATE",
+          });
+        }
+      }
+
+      // Validação de CPF/CNPJ único (obrigatório)
+      const cpfCnpjExists = await Cliente.query()
+        .where("cpf_cnpj", data.cpf_cnpj)
+        .first();
+      if (cpfCnpjExists) {
+        await trx.rollback();
+        return response.status(400).json({
+          success: false,
+          message: "CPF/CNPJ já está em uso por outro cliente",
+          code: "CPF_CNPJ_DUPLICATE",
         });
       }
 
@@ -61,7 +90,7 @@ class ClienteController {
     } catch (error) {
       await trx.rollback();
 
-      // Tratamento de erro de duplicidade
+      // Tratamento de erro de duplicidade (fallback caso as validações manuais falhem)
       if (
         error.code === "23505" || // Código PostgreSQL para violação de unicidade
         (error.detail && error.detail.includes("clientes_email_unique"))
@@ -181,6 +210,18 @@ class ClienteController {
         "responsavel",
       ]);
 
+      // VALIDAÇÃO MODIFICADA: Apenas nome e CPF/CNPJ são obrigatórios
+      if (!data.nome || !data.cpf_cnpj) {
+        await trx.rollback();
+        return response.status(422).json({
+          success: false,
+          message: "Dados incompletos",
+          required_fields: ["nome", "cpf_cnpj"], // Removido email da lista obrigatória
+          code: "VALIDATION_ERROR",
+        });
+      }
+
+      // Validação de CPF/CNPJ único apenas se for diferente do atual
       if (data.cpf_cnpj && data.cpf_cnpj !== cliente.cpf_cnpj) {
         const exists = await Cliente.query()
           .where("cpf_cnpj", data.cpf_cnpj)
@@ -196,6 +237,7 @@ class ClienteController {
         }
       }
 
+      // Validação de email único apenas se email for fornecido e diferente do atual
       if (data.email && data.email !== cliente.email) {
         const exists = await Cliente.query()
           .where("email", data.email)
@@ -209,6 +251,11 @@ class ClienteController {
             code: "EMAIL_DUPLICATE",
           });
         }
+      }
+
+      // Se email não for fornecido, manter o atual ou deixar como null
+      if (!data.email && cliente.email) {
+        data.email = cliente.email; // Mantém o email atual se não for fornecido novo
       }
 
       cliente.merge(data);
