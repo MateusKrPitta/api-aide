@@ -24,6 +24,7 @@ class Cliente extends Model {
       "complemento",
       "responsavel",
       "ativo",
+      "cep",
     ];
   }
 }

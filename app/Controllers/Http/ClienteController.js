@@ -38,6 +38,7 @@ class ClienteController {
         "numero",
         "complemento",
         "responsavel",
+        "cep", // NOVO CAMPO ADICIONADO
       ]);
 
       // VALIDAÇÃO MODIFICADA: Apenas nome e CPF/CNPJ são obrigatórios
@@ -208,6 +209,7 @@ class ClienteController {
         "numero",
         "complemento",
         "responsavel",
+        "cep", // NOVO CAMPO ADICIONADO
       ]);
 
       // VALIDAÇÃO MODIFICADA: Apenas nome e CPF/CNPJ são obrigatórios
