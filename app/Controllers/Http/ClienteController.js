@@ -194,91 +194,77 @@ class ClienteController {
     }
   }
 
-  async update({ params, request, response }) {
-    const trx = await Database.beginTransaction();
+  async update({ params, request, response, auth }) {
     try {
-      const cliente = await Cliente.findOrFail(params.id);
+      const user = await User.findOrFail(params.id);
       const data = request.only([
         "nome",
-        "telefone",
-        "cpf_cnpj",
+        "username",
         "email",
-        "estado",
-        "cidade",
-        "endereco",
-        "numero",
-        "complemento",
-        "responsavel",
-        "cep", // NOVO CAMPO ADICIONADO
+        "telefone",
+        "permissao",
+        "password",
       ]);
 
-      // VALIDAÇÃO MODIFICADA: Apenas nome e CPF/CNPJ são obrigatórios
-      if (!data.nome || !data.cpf_cnpj) {
-        await trx.rollback();
-        return response.status(422).json({
-          success: false,
-          message: "Dados incompletos",
-          required_fields: ["nome", "cpf_cnpj"], // Removido email da lista obrigatória
-          code: "VALIDATION_ERROR",
+      // Verifica permissão (só pode editar outros se for admin)
+      const userAuth = await auth.getUser();
+      if (user.id !== userAuth.id && userAuth.permissao < 5) {
+        return response.status(403).json({
+          status: "error",
+          message: "Você não tem permissão para editar este usuário",
         });
       }
 
-      // Validação de CPF/CNPJ único apenas se for diferente do atual
-      if (data.cpf_cnpj && data.cpf_cnpj !== cliente.cpf_cnpj) {
-        const exists = await Cliente.query()
-          .where("cpf_cnpj", data.cpf_cnpj)
-          .whereNot("id", params.id)
-          .first();
-        if (exists) {
-          await trx.rollback();
+      // Se estiver tentando mudar email, verifica se já existe
+      if (data.email && data.email !== user.email) {
+        const emailExists = await User.findBy("email", data.email);
+        if (emailExists && emailExists.id !== user.id) {
           return response.status(400).json({
-            success: false,
-            message: "CPF/CNPJ já está em uso por outro cliente",
-            code: "CPF_CNPJ_DUPLICATE",
+            status: "error",
+            message: "Este email já está em uso por outro usuário",
           });
         }
       }
 
-      // Validação de email único apenas se email for fornecido e diferente do atual
-      if (data.email && data.email !== cliente.email) {
-        const exists = await Cliente.query()
-          .where("email", data.email)
-          .whereNot("id", params.id)
-          .first();
-        if (exists) {
-          await trx.rollback();
-          return response.status(400).json({
-            success: false,
-            message: "Email já está em uso por outro cliente",
-            code: "EMAIL_DUPLICATE",
-          });
-        }
+      // IMPORTANTE: Se senha for string vazia, NÃO atualiza
+      // Isso evita o erro de NOT NULL
+      if (
+        data.password === "" ||
+        data.password === null ||
+        data.password === undefined
+      ) {
+        delete data.password; // Remove o campo do objeto
+      }
+      // Se tiver senha, valida que tem pelo menos 6 caracteres
+      else if (data.password && data.password.length < 6) {
+        return response.status(400).json({
+          status: "error",
+          message: "A senha deve ter pelo menos 6 caracteres",
+        });
       }
 
-      // Se email não for fornecido, manter o atual ou deixar como null
-      if (!data.email && cliente.email) {
-        data.email = cliente.email; // Mantém o email atual se não for fornecido novo
-      }
-
-      cliente.merge(data);
-      await cliente.save();
-      await trx.commit();
+      // Usa merge normalmente - se password foi removido, não atualiza
+      user.merge(data);
+      await user.save();
 
       return response.status(200).json({
-        success: true,
-        data: cliente,
-        message: "Cliente atualizado com sucesso",
+        status: "success",
+        data: {
+          id: user.id,
+          nome: user.nome,
+          username: user.username,
+          email: user.email,
+          telefone: user.telefone,
+          permissao: user.permissao,
+          ativo: user.ativo,
+        },
       });
     } catch (error) {
-      await trx.rollback();
-      console.error("Erro ao atualizar cliente:", error);
+      console.error("Erro ao atualizar usuário:", error.message);
       return response.status(500).json({
-        success: false,
-        message: "Falha ao atualizar cliente",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-        code: "CLIENTE_UPDATE_ERROR",
-        details: process.env.NODE_ENV === "development" ? error : undefined,
+        status: "error",
+        message: "Erro ao atualizar usuário",
+        debug: error.message,
       });
     }
   }
