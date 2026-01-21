@@ -41,15 +41,44 @@ class PrestadorController {
 
       const servicosIds = request.input("servicos", []);
 
-      // Validação básica (substitua por um validator se possível)
-      if (!data.nome || !data.cpf || !data.email) {
+      // Validação básica (REMOVIDO email da validação obrigatória)
+      if (!data.nome || !data.cpf) {
         await trx.rollback();
         return response.status(422).json({
           success: false,
           message: "Dados incompletos",
-          required_fields: ["nome", "cpf", "email"],
+          required_fields: ["nome", "cpf"], // REMOVIDO email
           code: "VALIDATION_ERROR",
         });
+      }
+
+      // Remover formatação do CPF/CNPJ para evitar conflitos
+      if (data.cpf) {
+        data.cpf = data.cpf.replace(/\D/g, ""); // Remove tudo que não é número
+      }
+
+      // Se email for enviado, garanta que seja string válida ou null
+      if (data.email === "") {
+        data.email = null;
+      }
+
+      // Validação do CPF/CNPJ - verifica se tem 11 ou 14 dígitos após limpeza
+      if (data.cpf) {
+        const cpfLimpo = data.cpf;
+        const isCPF = cpfLimpo.length === 11;
+        const isCNPJ = cpfLimpo.length === 14;
+
+        if (!isCPF && !isCNPJ) {
+          await trx.rollback();
+          return response.status(422).json({
+            success: false,
+            message:
+              "CPF/CNPJ inválido. Deve conter 11 (CPF) ou 14 (CNPJ) dígitos",
+            code: "INVALID_DOCUMENT",
+            received_length: cpfLimpo.length,
+            cleaned_document: cpfLimpo,
+          });
+        }
       }
 
       const prestador = await Prestador.create(data, trx);
@@ -87,6 +116,14 @@ class PrestadorController {
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
         code: "PRESTADOR_STORE_ERROR",
+        details:
+          process.env.NODE_ENV === "development"
+            ? {
+                code: error.code,
+                detail: error.detail,
+                constraint: error.constraint,
+              }
+            : undefined,
       });
     }
   }
@@ -133,12 +170,47 @@ class PrestadorController {
         data.cpf = data.cpf.replace(/\D/g, ""); // Remove tudo que não é número
       }
 
+      // Se email for enviado como string vazia, definir como null
+      if (data.email === "") {
+        data.email = null;
+      }
+
       const servicosIds = request.input("servicos", []);
 
       // Garantir que servicosIds seja um array
       const servicosArray = Array.isArray(servicosIds)
         ? servicosIds
         : [servicosIds].filter(Boolean);
+
+      // Validação para update (REMOVIDO email da validação obrigatória)
+      if (!data.nome || !data.cpf) {
+        await trx.rollback();
+        return response.status(422).json({
+          success: false,
+          message: "Dados incompletos para atualização",
+          required_fields: ["nome", "cpf"], // REMOVIDO email
+          code: "VALIDATION_ERROR",
+        });
+      }
+
+      // Validação do CPF/CNPJ - verifica se tem 11 ou 14 dígitos após limpeza
+      if (data.cpf) {
+        const cpfLimpo = data.cpf;
+        const isCPF = cpfLimpo.length === 11;
+        const isCNPJ = cpfLimpo.length === 14;
+
+        if (!isCPF && !isCNPJ) {
+          await trx.rollback();
+          return response.status(422).json({
+            success: false,
+            message:
+              "CPF/CNPJ inválido. Deve conter 11 (CPF) ou 14 (CNPJ) dígitos",
+            code: "INVALID_DOCUMENT",
+            received_length: cpfLimpo.length,
+            cleaned_document: cpfLimpo,
+          });
+        }
+      }
 
       prestador.merge(data);
       await prestador.save(trx);
