@@ -5,9 +5,46 @@ const ContaPagarParcela = use("App/Models/ContaPagarParcela");
 const Database = use("Database");
 
 class ContaPagarController {
-  // Lista todas as contas
+  // Lista todas as contas COM PAGINAÇÃO
   async index({ request }) {
-    return await ContaPagar.query().with("parcelas").fetch();
+    const { page = 1, perPage = 10, ...filters } = request.get();
+
+    const query = ContaPagar.query().with("parcelas");
+
+    // Aplicar filtros se existirem
+    if (filters.search) {
+      query.where("nome", "LIKE", `%${filters.search}%`);
+    }
+
+    if (filters.status_geral) {
+      query.where("status_geral", filters.status_geral);
+    }
+
+    if (filters.categoria_id) {
+      query.where("categoria_id", filters.categoria_id);
+    }
+
+    if (filters.prestador_id) {
+      query.where("prestador_id", filters.prestador_id);
+    }
+
+    if (filters.data_inicio && filters.data_fim) {
+      query.whereBetween("data_inicio", [
+        filters.data_inicio,
+        filters.data_fim,
+      ]);
+    } else if (filters.data_inicio) {
+      query.where("data_inicio", ">=", filters.data_inicio);
+    } else if (filters.data_fim) {
+      query.where("data_inicio", "<=", filters.data_fim);
+    }
+
+    // Ordenar por data de criação (mais recentes primeiro)
+    query.orderBy("created_at", "desc");
+
+    const contas = await query.paginate(page, perPage);
+
+    return contas;
   }
 
   async store({ request, response }) {
@@ -76,7 +113,7 @@ class ContaPagarController {
     );
   }
 
-  // Método para gerar parcelas (custo fixo) - CORRIGIDO
+  // Método para gerar parcelas (custo fixo)
   async gerarParcelas(conta, trx) {
     const { data_inicio, data_fim, valor_mensal, valor_total, custo_fixo } =
       conta;
@@ -105,7 +142,7 @@ class ContaPagarController {
           valor: valorParcela,
           status: 1, // Pendente
         },
-        trx
+        trx,
       );
     }
   }
@@ -300,8 +337,6 @@ class ContaPagarController {
         ...data,
         valor: data.valor ? parseFloat(data.valor) : parcela.valor,
         status: data.status ? parseInt(data.status) : parcela.status,
-        // Remove se forma_pagamento deve ser string
-        // forma_pagamento: data.forma_pagamento || null
       };
 
       parcela.merge(dadosAtualizados);
@@ -321,6 +356,7 @@ class ContaPagarController {
       });
     }
   }
+
   async recalcularValorTotal(contaId, trx) {
     const parcelas = await ContaPagarParcela.query()
       .where("conta_pagar_id", contaId)
@@ -329,13 +365,18 @@ class ContaPagarController {
 
     const valorTotal = parcelas.rows.reduce(
       (sum, parcela) => sum + parseFloat(parcela.valor),
-      0
+      0,
     );
 
     await ContaPagar.query()
       .where("id", contaId)
       .transacting(trx)
       .update({ valor_total: valorTotal });
+  }
+
+  // Método adicional para buscar TODAS as contas sem paginação (se necessário)
+  async all({ request }) {
+    return await ContaPagar.query().with("parcelas").fetch();
   }
 }
 
