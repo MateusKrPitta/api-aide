@@ -12,9 +12,17 @@ class ParcelasServico extends Model {
       "valor_parcela",
       "valor_prestador",
       "valor_comissao",
-      "status_pagamento_prestador", // Novo campo
-      "status_pagamento_comissao", // Novo campo
+      "status_pagamento_prestador",
+      "status_pagamento_comissao",
     ];
+  }
+
+  orcamentoServico() {
+    return this.belongsTo(
+      "App/Models/OrcamentoServico",
+      "orcamento_servico_id",
+      "id",
+    );
   }
 }
 

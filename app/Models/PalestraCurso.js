@@ -19,15 +19,15 @@ class PalestraCurso extends Model {
     return this.hasMany(
       "App/Models/RelatorioPalestraCurso",
       "id",
-      "palestra_curso_id"
+      "palestra_curso_id",
     );
   }
 
   parcelas() {
     return this.hasMany(
       "App/Models/ParcelaPalestraCurso",
-      "id", // Chave primária em PalestraCurso
-      "palestra_curso_id" // Chave estrangeira em ParcelaPalestraCurso
+      "id",
+      "palestra_curso_id",
     );
   }
 }

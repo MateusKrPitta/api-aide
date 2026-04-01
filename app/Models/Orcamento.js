@@ -1,5 +1,3 @@
-// app/Models/Orcamento.js
-
 "use strict";
 
 const Model = use("Model");
@@ -14,7 +12,7 @@ class Orcamento extends Model {
   }
 
   arquivos() {
-    return this.hasMany("App/Models/OrcamentoArquivo"); // ⬅ Aqui está o que falta
+    return this.hasMany("App/Models/OrcamentoArquivo");
   }
   relatorios() {
     return this.hasMany("App/Models/OrcamentoRelatorio");

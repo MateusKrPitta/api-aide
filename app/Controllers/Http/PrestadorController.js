@@ -41,28 +41,24 @@ class PrestadorController {
 
       const servicosIds = request.input("servicos", []);
 
-      // Validação básica (REMOVIDO email da validação obrigatória)
       if (!data.nome || !data.cpf) {
         await trx.rollback();
         return response.status(422).json({
           success: false,
           message: "Dados incompletos",
-          required_fields: ["nome", "cpf"], // REMOVIDO email
+          required_fields: ["nome", "cpf"],
           code: "VALIDATION_ERROR",
         });
       }
 
-      // Remover formatação do CPF/CNPJ para evitar conflitos
       if (data.cpf) {
-        data.cpf = data.cpf.replace(/\D/g, ""); // Remove tudo que não é número
+        data.cpf = data.cpf.replace(/\D/g, "");
       }
 
-      // Se email for enviado, garanta que seja string válida ou null
       if (data.email === "") {
         data.email = null;
       }
 
-      // Validação do CPF/CNPJ - verifica se tem 11 ou 14 dígitos após limpeza
       if (data.cpf) {
         const cpfLimpo = data.cpf;
         const isCPF = cpfLimpo.length === 11;
@@ -97,7 +93,6 @@ class PrestadorController {
     } catch (error) {
       await trx.rollback();
 
-      // Tratamento específico para erros de duplicação
       if (error.code === "23505") {
         return response.status(409).json({
           success: false,
@@ -165,35 +160,30 @@ class PrestadorController {
         "complemento",
       ]);
 
-      // Remover formatação do CPF/CNPJ para evitar conflitos
       if (data.cpf) {
-        data.cpf = data.cpf.replace(/\D/g, ""); // Remove tudo que não é número
+        data.cpf = data.cpf.replace(/\D/g, "");
       }
 
-      // Se email for enviado como string vazia, definir como null
       if (data.email === "") {
         data.email = null;
       }
 
       const servicosIds = request.input("servicos", []);
 
-      // Garantir que servicosIds seja um array
       const servicosArray = Array.isArray(servicosIds)
         ? servicosIds
         : [servicosIds].filter(Boolean);
 
-      // Validação para update (REMOVIDO email da validação obrigatória)
       if (!data.nome || !data.cpf) {
         await trx.rollback();
         return response.status(422).json({
           success: false,
           message: "Dados incompletos para atualização",
-          required_fields: ["nome", "cpf"], // REMOVIDO email
+          required_fields: ["nome", "cpf"],
           code: "VALIDATION_ERROR",
         });
       }
 
-      // Validação do CPF/CNPJ - verifica se tem 11 ou 14 dígitos após limpeza
       if (data.cpf) {
         const cpfLimpo = data.cpf;
         const isCPF = cpfLimpo.length === 11;
@@ -229,7 +219,6 @@ class PrestadorController {
     } catch (error) {
       await trx.rollback();
 
-      // Log mais detalhado do erro
       console.error("Erro ao atualizar prestador:", error);
 
       return response.status(400).json({
@@ -315,6 +304,29 @@ class PrestadorController {
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
         code: "REACTIVATION_ERROR",
+      });
+    }
+  }
+  async listarAtivos({ response }) {
+    try {
+      const prestadores = await Prestador.query()
+        .where("ativo", true)
+        .select("id", "nome")
+        .orderBy("nome", "asc")
+        .fetch();
+
+      return response.status(200).json({
+        success: true,
+        data: prestadores,
+        message: "Prestadores ativos listados com sucesso",
+      });
+    } catch (error) {
+      return response.status(500).json({
+        success: false,
+        message: "Falha ao listar prestadores ativos",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+        code: "PRESTADOR_LIST_ATIVOS_ERROR",
       });
     }
   }

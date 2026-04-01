@@ -6,20 +6,15 @@ const Database = use("Database");
 class TipoPalestraController {
   async index({ response, request }) {
     try {
-      // Verifica se foi passado o parâmetro 'ativos' na query string
       const { ativos } = request.get();
 
       let query = TipoPalestra.query();
 
-      // Se o parâmetro ativos for 'true', filtra apenas os ativos
       if (ativos === "true") {
         query.where("ativo", true);
-      }
-      // Se for 'false', filtra apenas os inativos
-      else if (ativos === "false") {
+      } else if (ativos === "false") {
         query.where("ativo", false);
       }
-      // Se não for passado, retorna todos (ativos e inativos)
 
       const tipos = await query.fetch();
 

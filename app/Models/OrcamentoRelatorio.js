@@ -1,6 +1,6 @@
 "use strict";
 
-const Model = use("Model"); // ✅ IMPORTANTE!
+const Model = use("Model");
 
 class OrcamentoRelatorio extends Model {
   static get table() {

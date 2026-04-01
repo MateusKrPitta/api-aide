@@ -7,7 +7,6 @@ class OrcamentoPrestador extends Model {
     return "orcamento_prestadores";
   }
 
-  // Configuração de timestamps (opcional, já que você está usando os nomes padrão)
   static get createdAtColumn() {
     return "created_at";
   }
@@ -16,7 +15,6 @@ class OrcamentoPrestador extends Model {
     return "updated_at";
   }
 
-  // Adicione isso para os campos de status
   static get paymentStatus() {
     return {
       PAGO: 1,
@@ -24,7 +22,6 @@ class OrcamentoPrestador extends Model {
     };
   }
 
-  // Relacionamentos
   orcamento() {
     return this.belongsTo("App/Models/Orcamento");
   }
@@ -37,7 +34,6 @@ class OrcamentoPrestador extends Model {
     return this.hasMany("App/Models/OrcamentoServico");
   }
 
-  // Método para verificar status (opcional, mas útil)
   isPago(tipo = "prestador") {
     return tipo === "prestador"
       ? this.status_pagamento_prestador === this.constructor.paymentStatus.PAGO

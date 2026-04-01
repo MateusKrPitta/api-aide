@@ -8,17 +8,15 @@ class ParcelaPalestraCursoController {
       const { id } = params;
       const { status_pagamento } = request.only(["status_pagamento"]);
 
-      // Validação do status
       if (![1, 2].includes(Number(status_pagamento))) {
         return response.status(400).json({
           success: false,
-          message: "Status inválido. Use 1 para Pago ou 2 para Pendente.",
+          message: "Status inválido. Use 1 para Pendente ou 2 para Pago.",
         });
       }
 
       const parcela = await ParcelaPalestraCurso.findOrFail(id);
 
-      // Atualiza apenas o status
       parcela.status_pagamento = status_pagamento;
       await parcela.save();
 

@@ -9,24 +9,73 @@ const ParcelasServico = use("App/Models/ParcelasServico");
 const moment = require("moment");
 
 class OrcamentoController {
-  async index({ response }) {
-    const orcamentos = await Orcamento.query()
-      .with("cliente")
-      .with("prestadores.prestador")
-      .with("prestadores.servicos.servico")
-      .fetch();
+  async index({ request, response }) {
+    try {
+      const { page = 1, limit = 10, search = "" } = request.all();
 
-    return response.json({
-      success: true,
-      data: orcamentos,
-    });
+      let query = Orcamento.query()
+        .with("cliente")
+        .with("prestadores.prestador")
+        .with("prestadores.servicos.servico")
+        .with("arquivos")
+        .orderBy("id", "desc");
+
+      if (search) {
+        query = query.where(function () {
+          this.where("nome", "LIKE", `%${search}%`)
+            .orWhereHas("cliente", (builder) => {
+              builder.where("nome", "LIKE", `%${search}%`);
+            })
+            .orWhereHas("prestadores.prestador", (builder) => {
+              builder.where("nome", "LIKE", `%${search}%`);
+            })
+            .orWhereHas("prestadores.servicos.servico", (builder) => {
+              builder.where("nome", "LIKE", `%${search}%`);
+            });
+        });
+      }
+
+      const paginatedOrcamentos = await query.paginate(page, limit);
+
+      const orcamentosData =
+        paginatedOrcamentos.data || paginatedOrcamentos.rows || [];
+
+      const total = paginatedOrcamentos.total || orcamentosData.length;
+
+      const perPage = parseInt(paginatedOrcamentos.perPage || limit);
+      const currentPage = parseInt(paginatedOrcamentos.page || page);
+      const lastPage = Math.ceil(total / perPage);
+
+      const from = total > 0 ? (currentPage - 1) * perPage + 1 : 0;
+      const to = total > 0 ? Math.min(currentPage * perPage, total) : 0;
+
+      return response.status(200).json({
+        success: true,
+        message: `${total} orçamento(s) encontrado(s)`,
+        data: orcamentosData,
+        pagination: {
+          total: total,
+          per_page: perPage,
+          current_page: currentPage,
+          last_page: lastPage,
+          from: from,
+          to: to,
+        },
+      });
+    } catch (error) {
+      console.error("Erro ao listar orçamentos:", error);
+      return response.status(500).json({
+        success: false,
+        message: "Erro ao listar orçamentos",
+        error: error.message,
+      });
+    }
   }
 
   async store({ request, response }) {
     const trx = await Database.beginTransaction();
 
     try {
-      // Obter todos os dados do formulário (incluindo arquivos)
       const data = request.all();
       const arquivos = request.file("arquivos", {
         types: ["pdf"],
@@ -34,7 +83,6 @@ class OrcamentoController {
         multiple: true,
       });
 
-      // Validação básica
       if (!data.nome || !data.cliente_id) {
         return response.status(400).json({
           success: false,
@@ -42,22 +90,20 @@ class OrcamentoController {
         });
       }
 
-      // Crie o orçamento principal
       const orcamento = await Orcamento.create(
         {
           nome: data.nome,
           cliente_id: data.cliente_id,
         },
-        trx
+        trx,
       );
 
-      // Processar upload de arquivos se existirem
       if (arquivos) {
         await arquivos.moveAll(
           Helpers.tmpPath("uploads/orcamentos"),
           (file) => ({
             name: `${Date.now()}-${file.clientName}`,
-          })
+          }),
         );
 
         if (arquivos.movedAll()) {
@@ -69,26 +115,24 @@ class OrcamentoController {
                   caminho_arquivo: file.fileName,
                   mime_type: file.type,
                 },
-                trx
-              )
-            )
+                trx,
+              ),
+            ),
           );
         } else {
           throw new Error(arquivos.errors());
         }
       }
 
-      // Processe prestadores
       for (const prestador of data.prestadores || []) {
         const orcamentoPrestador = await OrcamentoPrestador.create(
           {
             orcamento_id: orcamento.id,
             prestador_id: prestador.prestador_id,
           },
-          trx
+          trx,
         );
 
-        // Processe serviços
         for (const servico of prestador.servicos || []) {
           const novoServico = await OrcamentoServico.create(
             {
@@ -105,7 +149,7 @@ class OrcamentoController {
               data_entrega: servico.data_entrega,
               data_pagamento: servico.data_pagamento,
             },
-            trx
+            trx,
           );
 
           const totalParcelas = novoServico.numero_parcelas || 1;
@@ -128,10 +172,10 @@ class OrcamentoController {
                 valor_parcela: valorParcela.toFixed(2),
                 valor_prestador: valorPrestadorParcela.toFixed(2),
                 valor_comissao: valorComissaoParcela.toFixed(2),
-                status_pagamento_prestador: 2, // Alterado para 2 (Pendente)
-                status_pagamento_comissao: 2, // Alterado para 2 (Pendente)
+                status_pagamento_prestador: 1,
+                status_pagamento_comissao: 1,
               },
-              trx
+              trx,
             );
           }
         }
@@ -139,7 +183,6 @@ class OrcamentoController {
 
       await trx.commit();
 
-      // Retorna o orçamento com todos os relacionamentos
       return response.status(201).json({
         success: true,
         data: await Orcamento.query()
@@ -165,20 +208,18 @@ class OrcamentoController {
     try {
       const orcamento = await Orcamento.findOrFail(params.id);
 
-      // Primeiro deleta os arquivos físicos
       const arquivos = await orcamento.arquivos().fetch();
       const fs = Helpers.promisify(require("fs"));
 
       for (const arquivo of arquivos.rows) {
         const filePath = Helpers.tmpPath(
-          `uploads/orcamentos/${arquivo.caminho_arquivo}`
+          `uploads/orcamentos/${arquivo.caminho_arquivo}`,
         );
         if (await fs.exists(filePath)) {
           await fs.unlink(filePath);
         }
       }
 
-      // Depois deleta tudo do banco de dados (em cascata)
       await orcamento.delete(trx);
       await trx.commit();
 
@@ -207,20 +248,18 @@ class OrcamentoController {
         multiple: true,
       });
 
-      // Atualiza dados básicos
       orcamento.merge({
         nome: data.nome || orcamento.nome,
         cliente_id: data.cliente_id || orcamento.cliente_id,
       });
       await orcamento.save(trx);
 
-      // Processa novos arquivos (mantido igual)
       if (arquivos) {
         await arquivos.moveAll(
           Helpers.tmpPath("uploads/orcamentos"),
           (file) => ({
             name: `${Date.now()}-${file.clientName}`,
-          })
+          }),
         );
 
         if (arquivos.movedAll()) {
@@ -232,33 +271,29 @@ class OrcamentoController {
                   caminho_arquivo: file.fileName,
                   mime_type: file.type,
                 },
-                trx
-              )
-            )
+                trx,
+              ),
+            ),
           );
         } else {
           throw new Error(arquivos.errors());
         }
       }
 
-      // ATUALIZAÇÃO DE PRESTADORES E SERVIÇOS
       if (data.prestadores) {
-        // Remove todos os prestadores e serviços existentes
         await OrcamentoPrestador.query()
           .where("orcamento_id", orcamento.id)
           .delete(trx);
 
-        // Adiciona os novos prestadores e serviços
         for (const prestador of data.prestadores) {
           const orcamentoPrestador = await OrcamentoPrestador.create(
             {
               orcamento_id: orcamento.id,
               prestador_id: prestador.prestador_id,
             },
-            trx
+            trx,
           );
 
-          // Adiciona os serviços do prestador
           if (prestador.servicos) {
             for (const servico of prestador.servicos) {
               const novoServico = await OrcamentoServico.create(
@@ -276,10 +311,9 @@ class OrcamentoController {
                   data_entrega: servico.data_entrega,
                   data_pagamento: servico.data_pagamento,
                 },
-                trx
+                trx,
               );
 
-              // CRIAR PARCELAS SE FOR PARCELADO (tipo_pagamento = 2)
               if (novoServico.tipo_pagamento === 2) {
                 const totalParcelas = novoServico.numero_parcelas || 1;
                 const valorParcela =
@@ -300,10 +334,10 @@ class OrcamentoController {
                       valor_parcela: valorParcela.toFixed(2),
                       valor_prestador: valorPrestadorParcela.toFixed(2),
                       valor_comissao: valorComissaoParcela.toFixed(2),
-                      status_pagamento_prestador: 2, // Pendente
-                      status_pagamento_comissao: 2, // Pendente
+                      status_pagamento_prestador: 2,
+                      status_pagamento_comissao: 2,
                     },
-                    trx
+                    trx,
                   );
                 }
               }

@@ -3,8 +3,6 @@
 const Servico = use("App/Models/Servico");
 
 class ServicoController {
-  // Listar serviços ativos
-  // Listar todos os serviços (ativos e inativos)
   async index({ response }) {
     try {
       const servicos = await Servico.query().with("categoria").fetch();
@@ -23,7 +21,6 @@ class ServicoController {
     }
   }
 
-  // Criar novo serviço
   async store({ request, response }) {
     try {
       const data = request.only(["nome", "descricao", "categoria_id"]);
@@ -51,7 +48,6 @@ class ServicoController {
     }
   }
 
-  // Mostrar serviço específico
   async show({ params, response }) {
     try {
       const servico = await Servico.query()
@@ -78,7 +74,6 @@ class ServicoController {
       const servico = await Servico.findOrFail(params.id);
       const data = request.only(["nome", "descricao", "categoria_id"]);
 
-      // Validação adicional
       if (Object.keys(data).length === 0) {
         return response.status(400).json({
           status: "error",
@@ -103,7 +98,6 @@ class ServicoController {
     }
   }
 
-  // Inativar serviço
   async destroy({ params, response }) {
     try {
       const servico = await Servico.findOrFail(params.id);
@@ -132,7 +126,6 @@ class ServicoController {
     }
   }
 
-  // Reativar serviço
   async reativar({ params, response }) {
     try {
       const servico = await Servico.findOrFail(params.id);

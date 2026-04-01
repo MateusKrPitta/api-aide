@@ -16,16 +16,16 @@ class ContaReceber extends Model {
     return this.hasMany(
       "App/Models/ContaReceberParcela",
       "id",
-      "conta_receber_id"
+      "conta_receber_id",
     );
   }
 
   static get createdAtColumn() {
-    return null; // Se não usar timestamps
+    return null;
   }
 
   static get updatedAtColumn() {
-    return null; // Se não usar timestamps
+    return null;
   }
 
   prestador() {

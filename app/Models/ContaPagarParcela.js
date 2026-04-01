@@ -7,9 +7,8 @@ class ContaPagarParcela extends Model {
     return "contas_pagar_parcelas";
   }
 
-  // Especifique o nome exato da coluna de relacionamento
   static get foreignKey() {
-    return "conta_pagar_id"; // ou o nome que está no banco
+    return "conta_pagar_id";
   }
 
   conta() {
@@ -21,7 +20,7 @@ class ContaPagarParcela extends Model {
   }
 
   getStatusPagamento({ status }) {
-    return status; // Ou faça um mapeamento se necessário (ex: status 3 → 1)
+    return status;
   }
 }
 

@@ -1,6 +1,6 @@
 "use strict";
 
-const Model = use("Model"); // Esta linha está faltando!
+const Model = use("Model"); 
 
 class Categoria extends Model {
   static get hidden() {

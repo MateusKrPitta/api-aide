@@ -4,6 +4,25 @@ const Cliente = use("App/Models/Cliente");
 const Database = use("Database");
 
 class ClienteController {
+  async show({ params, response }) {
+    try {
+      const cliente = await Cliente.query()
+        .where("id", params.id)
+        .firstOrFail();
+
+      return response.status(200).json({
+        success: true,
+        data: cliente,
+        message: "Cliente encontrado com sucesso",
+      });
+    } catch (error) {
+      return response.status(404).json({
+        success: false,
+        message: "Cliente não encontrado",
+        code: "CLIENTE_NOT_FOUND",
+      });
+    }
+  }
   async index({ response }) {
     try {
       const clientes = await Cliente.query().fetch();
@@ -23,7 +42,37 @@ class ClienteController {
       });
     }
   }
+  async listarAtivos({ response }) {
+    try {
+      const totalClientes = await Cliente.getCount();
 
+      const clientesAtivos = await Cliente.query()
+        .where("ativo", true)
+        .select("id", "nome")
+        .orderBy("nome", "asc")
+        .fetch();
+
+      const clientesInativos = await Cliente.query()
+        .where("ativo", false)
+        .select("id", "nome")
+        .fetch();
+
+      return response.status(200).json({
+        success: true,
+        data: clientesAtivos,
+        message: "Clientes ativos listados com sucesso",
+      });
+    } catch (error) {
+      console.error("ERRO em listarAtivos:", error);
+      return response.status(500).json({
+        success: false,
+        message: "Falha ao listar clientes ativos",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+        code: "CLIENTE_LISTAR_ATIVOS_ERROR",
+      });
+    }
+  }
   async store({ request, response }) {
     const trx = await Database.beginTransaction();
     try {
@@ -38,21 +87,19 @@ class ClienteController {
         "numero",
         "complemento",
         "responsavel",
-        "cep", // NOVO CAMPO ADICIONADO
+        "cep",
       ]);
 
-      // VALIDAÇÃO MODIFICADA: Apenas nome e CPF/CNPJ são obrigatórios
       if (!data.nome || !data.cpf_cnpj) {
         await trx.rollback();
         return response.status(422).json({
           success: false,
           message: "Dados incompletos",
-          required_fields: ["nome", "cpf_cnpj"], // Removido email da lista obrigatória
+          required_fields: ["nome", "cpf_cnpj"],
           code: "VALIDATION_ERROR",
         });
       }
 
-      // Validação de email único apenas se email for fornecido
       if (data.email) {
         const emailExists = await Cliente.query()
           .where("email", data.email)
@@ -67,7 +114,6 @@ class ClienteController {
         }
       }
 
-      // Validação de CPF/CNPJ único (obrigatório)
       const cpfCnpjExists = await Cliente.query()
         .where("cpf_cnpj", data.cpf_cnpj)
         .first();
@@ -91,9 +137,8 @@ class ClienteController {
     } catch (error) {
       await trx.rollback();
 
-      // Tratamento de erro de duplicidade (fallback caso as validações manuais falhem)
       if (
-        error.code === "23505" || // Código PostgreSQL para violação de unicidade
+        error.code === "23505" ||
         (error.detail && error.detail.includes("clientes_email_unique"))
       ) {
         return response.status(400).json({
@@ -194,77 +239,82 @@ class ClienteController {
     }
   }
 
-  async update({ params, request, response, auth }) {
+  async update({ params, request, response }) {
+    const trx = await Database.beginTransaction();
     try {
-      const user = await User.findOrFail(params.id);
+      const cliente = await Cliente.findOrFail(params.id);
       const data = request.only([
         "nome",
-        "username",
-        "email",
         "telefone",
-        "permissao",
-        "password",
+        "cpf_cnpj",
+        "email",
+        "estado",
+        "cidade",
+        "endereco",
+        "numero",
+        "complemento",
+        "responsavel",
+        "cep",
       ]);
 
-      // Verifica permissão (só pode editar outros se for admin)
-      const userAuth = await auth.getUser();
-      if (user.id !== userAuth.id && userAuth.permissao < 5) {
-        return response.status(403).json({
-          status: "error",
-          message: "Você não tem permissão para editar este usuário",
+      if (!data.nome || !data.cpf_cnpj) {
+        await trx.rollback();
+        return response.status(422).json({
+          success: false,
+          message: "Dados incompletos",
+          required_fields: ["nome", "cpf_cnpj"],
+          code: "VALIDATION_ERROR",
         });
       }
 
-      // Se estiver tentando mudar email, verifica se já existe
-      if (data.email && data.email !== user.email) {
-        const emailExists = await User.findBy("email", data.email);
-        if (emailExists && emailExists.id !== user.id) {
+      if (data.email && data.email !== cliente.email) {
+        const emailExists = await Cliente.query()
+          .where("email", data.email)
+          .whereNot("id", params.id)
+          .first();
+        if (emailExists) {
+          await trx.rollback();
           return response.status(400).json({
-            status: "error",
-            message: "Este email já está em uso por outro usuário",
+            success: false,
+            message: "Email já está em uso por outro cliente",
+            code: "EMAIL_DUPLICATE",
           });
         }
       }
 
-      // IMPORTANTE: Se senha for string vazia, NÃO atualiza
-      // Isso evita o erro de NOT NULL
-      if (
-        data.password === "" ||
-        data.password === null ||
-        data.password === undefined
-      ) {
-        delete data.password; // Remove o campo do objeto
-      }
-      // Se tiver senha, valida que tem pelo menos 6 caracteres
-      else if (data.password && data.password.length < 6) {
-        return response.status(400).json({
-          status: "error",
-          message: "A senha deve ter pelo menos 6 caracteres",
-        });
+      if (data.cpf_cnpj && data.cpf_cnpj !== cliente.cpf_cnpj) {
+        const cpfCnpjExists = await Cliente.query()
+          .where("cpf_cnpj", data.cpf_cnpj)
+          .whereNot("id", params.id)
+          .first();
+        if (cpfCnpjExists) {
+          await trx.rollback();
+          return response.status(400).json({
+            success: false,
+            message: "CPF/CNPJ já está em uso por outro cliente",
+            code: "CPF_CNPJ_DUPLICATE",
+          });
+        }
       }
 
-      // Usa merge normalmente - se password foi removido, não atualiza
-      user.merge(data);
-      await user.save();
+      cliente.merge(data);
+      await cliente.save(trx);
+      await trx.commit();
 
       return response.status(200).json({
-        status: "success",
-        data: {
-          id: user.id,
-          nome: user.nome,
-          username: user.username,
-          email: user.email,
-          telefone: user.telefone,
-          permissao: user.permissao,
-          ativo: user.ativo,
-        },
+        success: true,
+        data: cliente,
+        message: "Cliente atualizado com sucesso",
       });
     } catch (error) {
-      console.error("Erro ao atualizar usuário:", error.message);
-      return response.status(500).json({
-        status: "error",
-        message: "Erro ao atualizar usuário",
-        debug: error.message,
+      await trx.rollback();
+      console.error("Erro ao atualizar cliente:", error);
+      return response.status(400).json({
+        success: false,
+        message: "Falha ao atualizar cliente",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+        code: "CLIENTE_UPDATE_ERROR",
       });
     }
   }

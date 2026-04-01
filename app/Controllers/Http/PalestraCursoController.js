@@ -4,20 +4,42 @@ const PalestraCurso = use("App/Models/PalestraCurso");
 const ParcelaPalestraCurso = use("App/Models/ParcelaPalestraCurso");
 
 class PalestraCursoController {
-  async index({ response }) {
+  async index({ request, response }) {
     try {
-      const cursos = await PalestraCurso.query()
+      const { page = 1, perPage = 10, search = "" } = request.all();
+
+      let query = PalestraCurso.query()
         .with("tipoPalestra")
         .with("cliente")
         .with("parcelas", (builder) => {
           builder.orderBy("numero_parcela", "asc");
-        })
-        .fetch();
+        });
+
+      if (search) {
+        query = query.where(function () {
+          this.where("nome", "like", `%${search}%`).orWhereHas(
+            "cliente",
+            (clienteBuilder) => {
+              clienteBuilder.where("nome", "like", `%${search}%`);
+            },
+          );
+        });
+      }
+
+      query = query.orderBy("data", "desc");
+
+      const cursos = await query.paginate(page, perPage);
 
       return response.status(200).json({
         success: true,
         message: "Palestras/Cursos listados com sucesso.",
         data: cursos,
+        pagination: {
+          total: cursos.total,
+          page: cursos.page,
+          perPage: cursos.perPage,
+          lastPage: cursos.lastPage,
+        },
       });
     } catch (error) {
       return response.status(500).json({
@@ -26,6 +48,74 @@ class PalestraCursoController {
         error: error.message,
       });
     }
+  }
+
+  async indexSimplificado({ request, response }) {
+    try {
+      const { page = 1, perPage = 10, search = "" } = request.all();
+
+      let query = PalestraCurso.query()
+        .select("id", "nome", "data", "valor", "status_pagamento", "cliente_id")
+        .with("cliente", (builder) => {
+          builder.select("id", "nome as nome_cliente");
+        });
+
+      if (search) {
+        query = query.where(function () {
+          this.where("nome", "like", `%${search}%`).orWhereHas(
+            "cliente",
+            (clienteBuilder) => {
+              clienteBuilder.where("nome", "like", `%${search}%`);
+            },
+          );
+        });
+      }
+
+      query = query.orderBy("data", "desc");
+
+      const cursos = await query.paginate(page, perPage);
+
+      const dadosFormatados = cursos.data.map((curso) => {
+        return {
+          id: curso.id,
+          nome: curso.nome || "Não informado",
+          data: curso.data
+            ? new Date(curso.data).toISOString().split("T")[0]
+            : "",
+          cliente: curso.cliente ? curso.cliente.nome_cliente : "Não informado",
+          status_pagamento: this.formatarStatus(curso.status_pagamento),
+          valor: parseFloat(curso.valor || 0),
+        };
+      });
+
+      return response.status(200).json({
+        success: true,
+        message: "Palestras/Cursos listados com sucesso.",
+        data: dadosFormatados,
+        pagination: {
+          total: cursos.total,
+          page: cursos.page,
+          perPage: cursos.perPage,
+          lastPage: cursos.lastPage,
+        },
+      });
+    } catch (error) {
+      console.error("Erro no indexSimplificado:", error);
+      return response.status(500).json({
+        success: false,
+        message: "Erro ao listar palestras/cursos.",
+        error: error.message,
+      });
+    }
+  }
+
+  formatarStatus(status) {
+    const statusMap = {
+      1: "Pago",
+      2: "Pendente",
+      3: "Cancelado",
+    };
+    return statusMap[status] || "Não informado";
   }
 
   async store({ request, response }) {
@@ -46,31 +136,15 @@ class PalestraCursoController {
         "primeira_data_parcela",
       ]);
 
-      // Validações específicas para pagamento parcelado
-      if (data.tipo_pagamento == 2) {
-        // 2 = Parcelado
-        if (!data.qtd_parcelas || data.qtd_parcelas < 2) {
-          return response.status(400).json({
-            success: false,
-            message: "Para pagamento parcelado, informe 2 ou mais parcelas",
-          });
-        }
-
-        if (!data.primeira_data_parcela) {
-          data.primeira_data_parcela = data.data;
-        }
-      }
-
-      // Cria o curso/palestra
       const curso = await PalestraCurso.create(data);
 
-      // Lógica de parcelamento
       if (data.tipo_pagamento == 2) {
-        // 2 = Parcelado
         const valorParcela = (data.valor / data.qtd_parcelas).toFixed(2);
-        const primeiraData = new Date(data.primeira_data_parcela);
 
-        // Cria todas as parcelas
+        const primeiraData = data.primeira_data_parcela
+          ? new Date(data.primeira_data_parcela)
+          : new Date(data.data);
+
         for (let i = 0; i < data.qtd_parcelas; i++) {
           const dataVencimento = new Date(primeiraData);
           dataVencimento.setMonth(primeiraData.getMonth() + i);
@@ -80,11 +154,10 @@ class PalestraCursoController {
             numero_parcela: i + 1,
             valor: valorParcela,
             data_vencimento: dataVencimento,
-            status_pagamento: 1, // 1 = Pago, ajuste conforme necessário
+            status_pagamento: 2,
           });
         }
       } else {
-        // Pagamento à vista (tipo_pagamento == 1)
         await ParcelaPalestraCurso.create({
           palestra_curso_id: curso.id,
           numero_parcela: 1,
@@ -94,7 +167,6 @@ class PalestraCursoController {
         });
       }
 
-      // Retorna com todas as relações
       const resultado = await PalestraCurso.query()
         .where("id", curso.id)
         .with("tipoPalestra")
@@ -165,7 +237,6 @@ class PalestraCursoController {
       curso.merge(data);
       await curso.save();
 
-      // Remove parcelas existentes e cria novas se necessário
       await ParcelaPalestraCurso.query()
         .where("palestra_curso_id", curso.id)
         .delete();

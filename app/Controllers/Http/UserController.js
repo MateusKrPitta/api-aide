@@ -32,7 +32,6 @@ class UserController {
    */
   async store({ request, response, auth }) {
     try {
-      // Verifica se o usuário atual é admin
       await auth.check();
       const userAuth = await auth.getUser();
 
@@ -52,7 +51,6 @@ class UserController {
         "permissao",
       ]);
 
-      // Validações
       if (!data.email || !data.password) {
         return response.status(400).json({
           status: "error",
@@ -77,7 +75,6 @@ class UserController {
 
   async ativar({ params, response, auth }) {
     try {
-      // Verifica se é admin
       await auth.check();
       const userAuth = await auth.getUser();
 
@@ -108,7 +105,6 @@ class UserController {
 
   async inativar({ params, response, auth }) {
     try {
-      // Verifica se é admin
       await auth.check();
       const userAuth = await auth.getUser();
 
@@ -119,7 +115,6 @@ class UserController {
         });
       }
 
-      // Impede que admin inative a si mesmo
       if (userAuth.id == params.id) {
         return response.status(403).json({
           status: "error",
@@ -179,7 +174,6 @@ class UserController {
         "password",
       ]);
 
-      // Verifica permissão (só pode editar outros se for admin)
       const userAuth = await auth.getUser();
       if (user.id !== userAuth.id && userAuth.permissao < 5) {
         return response.status(403).json({
@@ -209,7 +203,6 @@ class UserController {
    */
   async destroy({ params, response, auth }) {
     try {
-      // Verifica se é admin
       await auth.check();
       const userAuth = await auth.getUser();
 

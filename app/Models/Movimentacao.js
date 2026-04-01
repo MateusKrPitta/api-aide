@@ -4,7 +4,7 @@ const Model = use("Model");
 
 class Movimentacao extends Model {
   static get table() {
-    return "movimentacoes"; // Define explicitamente o nome da tabela
+    return "movimentacoes";
   }
 
   categoria() {
