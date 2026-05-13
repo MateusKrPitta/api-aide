@@ -26,6 +26,9 @@ class ContasReceberSchema extends Schema {
         .references("id")
         .inTable("categorias")
         .onDelete("CASCADE");
+      table.date("data_pagamento").nullable();
+      table.integer("forma_pagamento").unsigned().nullable();
+      table.integer("quantidade_parcelas").unsigned().defaultTo(1);
       table.timestamps();
     });
   }

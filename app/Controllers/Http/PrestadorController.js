@@ -37,6 +37,7 @@ class PrestadorController {
         "endereco",
         "numero",
         "complemento",
+        "cep",
       ]);
 
       const servicosIds = request.input("servicos", []);
@@ -158,6 +159,7 @@ class PrestadorController {
         "endereco",
         "numero",
         "complemento",
+        "cep",
       ]);
 
       if (data.cpf) {

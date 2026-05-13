@@ -13,11 +13,7 @@ class ContaReceber extends Model {
   }
 
   parcelas() {
-    return this.hasMany(
-      "App/Models/ContaReceberParcela",
-      "id",
-      "conta_receber_id",
-    );
+    return this.hasMany("App/Models/ContaReceberParcela");
   }
 
   static get createdAtColumn() {
@@ -30,6 +26,14 @@ class ContaReceber extends Model {
 
   prestador() {
     return this.belongsTo("App/Models/Prestador");
+  }
+
+  orcamento() {
+    return this.belongsTo("App/Models/Orcamento");
+  }
+
+  palestraCurso() {
+    return this.belongsTo("App/Models/PalestraCurso");
   }
 }
 

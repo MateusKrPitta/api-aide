@@ -14,9 +14,7 @@ module.exports = {
       user: Env.get("DB_USER"),
       password: Env.get("DB_PASSWORD"),
       database: Env.get("DB_DATABASE"),
-      ssl: {
-        rejectUnauthorized: false, // Importante para Railway
-      },
+      ssl: Env.get("DB_SSL", "false") === "true" ? { rejectUnauthorized: false } : false,
     },
     migrations: {
       tableName: "adonis_migrations",

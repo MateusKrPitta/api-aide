@@ -48,6 +48,7 @@ class MovimentacaoController {
       });
     }
   }
+
   async index({ request }) {
     const {
       page = 1,
@@ -60,23 +61,59 @@ class MovimentacaoController {
       origem,
     } = request.get();
 
+    const { todosDados, totalQuery } = await this.buscarTodosDados({
+      tipo,
+      data_inicio,
+      data_fim,
+      status,
+      categoria_id,
+      origem,
+    });
+
+    const startIndex = (page - 1) * perPage;
+    const endIndex = page * perPage;
+    const dadosPaginados = todosDados.slice(startIndex, endIndex);
+
+    const formattedData = {
+      total: totalQuery,
+      perPage: parseInt(perPage),
+      page: parseInt(page),
+      lastPage: Math.ceil(totalQuery / perPage),
+      data: dadosPaginados.map((item) => {
+        return {
+          id: item.id,
+          tipo: item.tipo === "entrada" ? "Entrada" : "Saída",
+          descricao: item.descricao,
+          valor: parseFloat(item.valor || 0),
+          data: item.data,
+          data_vencimento: item.data_vencimento || item.data,
+          categoria_id: item.categoria_id,
+          categoria_nome: item.categoria_nome || "Sem categoria",
+          origem: item.origem,
+          cliente_id: item.cliente_id,
+          cliente_nome: item.cliente_nome,
+          prestador_id: item.prestador_id,
+          prestador_nome: item.prestador_nome,
+          servico_nome: item.servico_nome,
+          orcamento_nome: item.orcamento_nome,
+          status: "pago",
+          status_codigo: 3,
+          status_texto: "Pago",
+          dias_vencidos: 0,
+          is_pago: true,
+        };
+      }),
+    };
+
+    return formattedData;
+  }
+
+  async buscarTodosDados(filtros) {
+    const { tipo, data_inicio, data_fim, status, categoria_id, origem } = filtros;
+
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const hojeStr = hoje.toISOString().split("T")[0];
-
-    const pagamentosPrestadores = await this.buscarPagamentosPrestadores(
-      data_inicio,
-      data_fim,
-      hojeStr,
-      tipo,
-    );
-
-    const comissoesReceber = await this.buscarComissoesReceber(
-      data_inicio,
-      data_fim,
-      hojeStr,
-      tipo,
-    );
 
     const parcelasPalestras = await this.buscarParcelasPalestras(
       data_inicio,
@@ -132,11 +169,7 @@ class MovimentacaoController {
             Database.raw("NULL as data_pagamento"),
           )
             .from("contas_pagar")
-            .leftJoin(
-              "categorias",
-              "contas_pagar.categoria_id",
-              "categorias.id",
-            )
+            .leftJoin("categorias", "contas_pagar.categoria_id", "categorias.id")
             .leftJoin(
               "prestadores",
               "contas_pagar.prestador_id",
@@ -268,11 +301,7 @@ class MovimentacaoController {
     }
 
     if (tipo) {
-      if (tipo === "entrada") {
-        query.where("tipo", "entrada");
-      } else if (tipo === "saida") {
-        query.where("tipo", "saida");
-      }
+      query.where("tipo", tipo);
     }
 
     if (data_inicio && data_fim) {
@@ -287,44 +316,14 @@ class MovimentacaoController {
       query.where("categoria_id", categoria_id);
     }
 
-    if (status === "pendente") {
-      return {
-        total: 0,
-        perPage: parseInt(perPage),
-        page: parseInt(page),
-        lastPage: 0,
-        data: [],
-      };
-    }
+    const dataPrincipal = await query.orderBy("data", "desc");
 
-    const countResult = await query.clone().count("* as total");
-    const totalQuery = parseInt(countResult[0].total);
-
-    const dataPrincipal = await query
-      .orderBy("data", "desc")
-      .offset((page - 1) * perPage)
-      .limit(perPage);
-
-    let pagamentosFiltrados = pagamentosPrestadores;
-    let comissoesFiltradas = comissoesReceber;
     let palestrasFiltradas = parcelasPalestras;
 
     if (tipo) {
-      if (tipo === "entrada") {
-        pagamentosFiltrados = [];
-        comissoesFiltradas = comissoesFiltradas.filter(
-          (item) => item.tipo === "entrada",
-        );
-        palestrasFiltradas = palestrasFiltradas.filter(
-          (item) => item.tipo === "entrada",
-        );
-      } else if (tipo === "saida") {
-        pagamentosFiltrados = pagamentosFiltrados.filter(
-          (item) => item.tipo === "saida",
-        );
-        comissoesFiltradas = [];
-        palestrasFiltradas = [];
-      }
+      palestrasFiltradas = palestrasFiltradas.filter(
+        (item) => item.tipo === tipo,
+      );
     }
 
     if (data_inicio || data_fim) {
@@ -339,70 +338,24 @@ class MovimentacaoController {
         return true;
       };
 
-      pagamentosFiltrados = pagamentosFiltrados.filter(filterByDate);
-      comissoesFiltradas = comissoesFiltradas.filter(filterByDate);
       palestrasFiltradas = palestrasFiltradas.filter(filterByDate);
     }
 
     if (categoria_id) {
       const catId = parseInt(categoria_id);
-      pagamentosFiltrados = pagamentosFiltrados.filter(
-        (item) => item.categoria_id === catId,
-      );
-      comissoesFiltradas = comissoesFiltradas.filter(
-        (item) => item.categoria_id === catId,
-      );
       palestrasFiltradas = palestrasFiltradas.filter(
         (item) => item.categoria_id === catId,
       );
     }
 
-    let todosDados = [
-      ...dataPrincipal,
-      ...pagamentosFiltrados,
-      ...comissoesFiltradas,
-      ...palestrasFiltradas,
-    ];
+    let todosDados = [...dataPrincipal, ...palestrasFiltradas];
 
     todosDados.sort((a, b) => new Date(b.data) - new Date(a.data));
 
-    const startIndex = (page - 1) * perPage;
-    const endIndex = page * perPage;
-    const dadosPaginados = todosDados.slice(startIndex, endIndex);
-
-    const formattedData = {
-      total: totalQuery,
-      perPage: parseInt(perPage),
-      page: parseInt(page),
-      lastPage: Math.ceil(totalQuery / perPage),
-      data: dadosPaginados
-        .filter((item) => item.is_pago === true)
-        .map((item) => {
-          return {
-            id: item.id,
-            tipo: item.tipo === "entrada" ? "Entrada" : "Saída",
-            descricao: item.descricao,
-            valor: parseFloat(item.valor),
-            data: item.data,
-            data_vencimento: item.data_vencimento || item.data,
-            categoria_id: item.categoria_id,
-            categoria_nome: item.categoria_nome || "Sem categoria",
-            origem: item.origem,
-            cliente_id: item.cliente_id,
-            cliente_nome: item.cliente_nome,
-            prestador_id: item.prestador_id,
-            prestador_nome: item.prestador_nome,
-            servico_nome: item.servico_nome,
-            orcamento_nome: item.orcamento_nome,
-            status: "pago",
-            status_codigo: 3,
-            status_texto: "Pago",
-            dias_vencidos: 0,
-            is_pago: true,
-          };
-        }),
+    return {
+      todosDados,
+      totalQuery: todosDados.length,
     };
-    return formattedData;
   }
 
   async buscarParcelasPalestras(data_inicio, data_fim, hojeStr, tipo = null) {
@@ -422,6 +375,18 @@ class MovimentacaoController {
         if (tipo === "saida") {
           continue;
         }
+
+        // --- NOVA TRAVA ANTI-DUPLICAÇÃO ---
+        // Se a palestra já tem um registro no contas_receber, não mostramos aqui 
+        // para não duplicar, pois o unionAll já vai pegar do contas_receber.
+        const jaExisteNoFinanceiro = await Database.from("contas_receber")
+          .where("palestra_curso_id", palestra.id)
+          .first();
+
+        if (jaExisteNoFinanceiro) {
+          continue;
+        }
+        // ----------------------------------
 
         const dataVencimento = parcelaJson.data_vencimento;
         if (data_inicio && data_fim) {
@@ -515,6 +480,7 @@ class MovimentacaoController {
             prestador_nome: os.orcamentoPrestador?.prestador?.nome,
             servico_nome: os.servico?.nome,
             orcamento_nome: os.orcamentoPrestador?.orcamento?.nome,
+            is_pago: true,
           });
         }
       }
@@ -566,22 +532,24 @@ class MovimentacaoController {
             continue;
           }
 
+          const isAide = os.is_servico_aide;
           comissoes.push({
             id: `comissao_${parcela.id}`,
             tipo: "entrada",
-            descricao: `Comissão: ${os.servico?.nome || "Serviço"} - Cliente: ${os.orcamentoPrestador?.orcamento?.cliente?.nome || "N/A"} (Parcela ${parcela.numero_parcela})`,
-            valor: parseFloat(parcela.valor_comissao || 0),
+            descricao: `${isAide ? "Serviço Aidê" : "Recebimento Serviço"}: ${os.servico?.nome || "Serviço"} - Cliente: ${os.orcamentoPrestador?.orcamento?.cliente?.nome || "N/A"} (Parcela ${parcela.numero_parcela})`,
+            valor: parseFloat(parcela.valor_parcela || 0),
             data: parcela.data_pagamento,
             data_vencimento: parcela.data_pagamento,
             categoria_id: null,
-            categoria_nome: "Comissão a Receber",
-            origem: "comissao_receber",
+            categoria_nome: isAide ? "Serviço Aidê" : "Recebimento de Serviço",
+            origem: isAide ? "servico_aide" : "comissao_receber",
             cliente_id: os.orcamentoPrestador?.orcamento?.cliente?.id,
             cliente_nome: os.orcamentoPrestador?.orcamento?.cliente?.nome,
             prestador_id: os.orcamentoPrestador?.prestador?.id,
             prestador_nome: os.orcamentoPrestador?.prestador?.nome,
             servico_nome: os.servico?.nome,
             orcamento_nome: os.orcamentoPrestador?.orcamento?.nome,
+            is_pago: true,
           });
         }
       }
@@ -650,8 +618,6 @@ class MovimentacaoController {
       totalParcelasPagarFixas,
       totalContasReceberVariaveis,
       totalParcelasReceberFixas,
-      pagamentosPrestadores,
-      comissoesReceber,
       parcelasPalestras,
     ] = await Promise.all([
       Database.from("movimentacoes")
@@ -758,6 +724,9 @@ class MovimentacaoController {
           if (categoria_id) {
             query.where("categoria_id", categoria_id);
           }
+          
+          // Ignorar contas que vêm de palestras (pois são somadas separadamente)
+          query.whereNull("palestra_curso_id");
         })
         .first(),
 
@@ -796,13 +765,12 @@ class MovimentacaoController {
           if (categoria_id) {
             query.where("contas_receber.categoria_id", categoria_id);
           }
+
+          // Ignorar parcelas que vêm de palestras (pois são somadas separadamente)
+          query.whereNull("contas_receber.palestra_curso_id");
         })
         .first(),
-
-      this.getTotalPagamentosPrestadores(data_inicio, data_fim, categoria_id),
-
-      this.getTotalComissoesReceber(data_inicio, data_fim, categoria_id),
-
+ 
       this.getTotalParcelasPalestras(data_inicio, data_fim, categoria_id),
     ]);
 
@@ -810,14 +778,12 @@ class MovimentacaoController {
       parseFloat(totalMovimentacoes?.total_entradas_pagas || 0) +
       parseFloat(totalContasReceberVariaveis?.total_pago || 0) +
       parseFloat(totalParcelasReceberFixas?.total_pago || 0) +
-      parseFloat(comissoesReceber?.total_pago || 0) +
       parseFloat(parcelasPalestras?.total_pago || 0);
 
     const totalSaidasPagas =
       parseFloat(totalMovimentacoes?.total_saidas_pagas || 0) +
       parseFloat(totalContasPagarVariaveis?.total_pago || 0) +
-      parseFloat(totalParcelasPagarFixas?.total_pago || 0) +
-      parseFloat(pagamentosPrestadores?.total_pago || 0);
+      parseFloat(totalParcelasPagarFixas?.total_pago || 0);
 
     const saldo = totalEntradasPagas - totalSaidasPagas;
 
@@ -837,7 +803,6 @@ class MovimentacaoController {
           contas_receber_fixas: parseFloat(
             totalParcelasReceberFixas?.total_pago || 0,
           ),
-          comissoes: parseFloat(comissoesReceber?.total_pago || 0),
           palestras: parseFloat(parcelasPalestras?.total_pago || 0),
         },
         saidas: {
@@ -851,9 +816,6 @@ class MovimentacaoController {
           contas_pagar_fixas: parseFloat(
             totalParcelasPagarFixas?.total_pago || 0,
           ),
-          pagamentos_prestadores: parseFloat(
-            pagamentosPrestadores?.total_pago || 0,
-          ),
         },
       },
       periodo: {
@@ -863,96 +825,17 @@ class MovimentacaoController {
     };
   }
 
-  async getTotalPagamentosPrestadores(data_inicio, data_fim, categoria_id) {
-    try {
-      const query = Database.from("parcelas_servicos")
-        .select(Database.raw("SUM(valor_prestador) as total_pago"))
-        .where("status_pagamento_prestador", 2);
-
-      if (data_inicio && data_fim) {
-        query.whereBetween("data_pagamento", [data_inicio, data_fim]);
-      } else if (data_inicio) {
-        query.where("data_pagamento", ">=", data_inicio);
-      } else if (data_fim) {
-        query.where("data_pagamento", "<=", data_fim);
-      }
-
-      if (categoria_id) {
-        query
-          .innerJoin(
-            "orcamento_servicos",
-            "parcelas_servicos.orcamento_servico_id",
-            "orcamento_servicos.id",
-          )
-          .innerJoin("servicos", "orcamento_servicos.servico_id", "servicos.id")
-          .where("servicos.categoria_id", categoria_id);
-      }
-
-      const result = await query.first();
-      return {
-        total_pago: parseFloat(result?.total_pago || 0),
-      };
-    } catch (error) {
-      console.error(
-        "Erro ao calcular total de pagamentos a prestadores:",
-        error,
-      );
-      return { total_pago: 0 };
-    }
-  }
-
-  async getTotalComissoesReceber(data_inicio, data_fim, categoria_id) {
-    try {
-      let query = Database.from("parcelas_servicos")
-        .select(Database.raw("SUM(valor_comissao) as total_pago"))
-        .where("status_pagamento_comissao", 2);
-
-      if (data_inicio && data_fim) {
-        query.whereBetween("data_pagamento", [data_inicio, data_fim]);
-      } else if (data_inicio) {
-        query.where("data_pagamento", ">=", data_inicio);
-      } else if (data_fim) {
-        query.where("data_pagamento", "<=", data_fim);
-      } else {
-      }
-
-      if (categoria_id) {
-        query
-          .innerJoin(
-            "orcamento_servicos",
-            "parcelas_servicos.orcamento_servico_id",
-            "orcamento_servicos.id",
-          )
-          .innerJoin("servicos", "orcamento_servicos.servico_id", "servicos.id")
-          .where("servicos.categoria_id", categoria_id);
-      }
-
-      const result = await query.first();
-
-      const countQuery = await Database.from("parcelas_servicos")
-        .count("* as total")
-        .where("status_pagamento_comissao", 2);
-
-      return {
-        total_pago: parseFloat(result?.total_pago || 0),
-      };
-    } catch (error) {
-      console.error("❌ Erro ao calcular total de comissões a receber:", error);
-      return { total_pago: 0 };
-    }
-  }
-
   async getTotalParcelasPalestras(data_inicio, data_fim, categoria_id) {
     try {
       const testQuery = await Database.raw(`
-      SELECT SUM(valor) as total_pago 
-      FROM parcela_palestra_cursos 
-      WHERE status_pagamento = 1
-    `);
+        SELECT SUM(valor) as total_pago 
+        FROM parcela_palestra_cursos 
+        WHERE status_pagamento = '2'
+      `);
 
       const query = Database.from("parcela_palestra_cursos")
         .select(Database.raw("SUM(valor) as total_pago"))
-        .where("status_pagamento", 1);
+        .where("status_pagamento", "2");
 
       if (data_inicio && data_fim) {
         query.whereBetween("data_vencimento", [data_inicio, data_fim]);
@@ -1012,34 +895,6 @@ class MovimentacaoController {
             success: true,
             message: "Parcela de palestra excluída com sucesso",
             origem: "palestra_curso",
-          });
-        }
-      }
-
-      if (id.toString().startsWith("prestador_")) {
-        const realId = id.toString().replace("prestador_", "");
-        const parcela = await ParcelasServico.find(realId);
-
-        if (parcela) {
-          await parcela.delete();
-          return response.status(200).json({
-            success: true,
-            message: "Pagamento a prestador excluído com sucesso",
-            origem: "pagamento_prestador",
-          });
-        }
-      }
-
-      if (id.toString().startsWith("comissao_")) {
-        const realId = id.toString().replace("comissao_", "");
-        const parcela = await ParcelasServico.find(realId);
-
-        if (parcela) {
-          await parcela.delete();
-          return response.status(200).json({
-            success: true,
-            message: "Comissão excluída com sucesso",
-            origem: "comissao_receber",
           });
         }
       }
@@ -1133,68 +988,6 @@ class MovimentacaoController {
         message: error.message,
         stack: error.stack,
       });
-    }
-  }
-
-  async getTotalComissoesReceber(data_inicio, data_fim, categoria_id) {
-    try {
-      let query = Database.from("parcelas_servicos")
-        .select(Database.raw("SUM(valor_comissao) as total_pago"))
-        .where("status_pagamento_comissao", 2);
-
-      if (data_inicio && data_fim) {
-        query.where(function () {
-          this.whereBetween("data_pagamento", [
-            data_inicio,
-            data_fim,
-          ]).orWhereNull("data_pagamento");
-        });
-      } else if (data_inicio) {
-        query.where(function () {
-          this.where("data_pagamento", ">=", data_inicio).orWhereNull(
-            "data_pagamento",
-          );
-        });
-      } else if (data_fim) {
-        query.where(function () {
-          this.where("data_pagamento", "<=", data_fim).orWhereNull(
-            "data_pagamento",
-          );
-        });
-      } else {
-        console.log(
-          "Nenhum filtro de data aplicado - buscando TODAS as comissões pagas",
-        );
-      }
-
-      if (categoria_id) {
-        query
-          .innerJoin(
-            "orcamento_servicos",
-            "parcelas_servicos.orcamento_servico_id",
-            "orcamento_servicos.id",
-          )
-          .innerJoin("servicos", "orcamento_servicos.servico_id", "servicos.id")
-          .where("servicos.categoria_id", categoria_id);
-      }
-
-      const result = await query.first();
-
-      const countQuery = await Database.from("parcelas_servicos")
-        .count("* as total")
-        .where("status_pagamento_comissao", 2);
-
-      const parcela106 = await Database.from("parcelas_servicos")
-        .select("*")
-        .where("id", 106)
-        .first();
-
-      return {
-        total_pago: parseFloat(result?.total_pago || 0),
-      };
-    } catch (error) {
-      console.error("❌ Erro ao calcular total de comissões a receber:", error);
-      return { total_pago: 0 };
     }
   }
 
@@ -1473,88 +1266,6 @@ class MovimentacaoController {
       return resultado;
     }
 
-    if (id.toString().startsWith("prestador_")) {
-      const parcelaId = id.toString().replace("prestador_", "");
-      const parcela = await ParcelasServico.find(parcelaId);
-
-      if (parcela) {
-        const orcamentoServico = await OrcamentoServico.query()
-          .where("id", parcela.orcamento_servico_id)
-          .with("servico")
-          .with("orcamentoPrestador", (builder) => {
-            builder.with("orcamento").with("prestador");
-          })
-          .first();
-
-        if (orcamentoServico) {
-          const os = orcamentoServico.toJSON();
-          const isPago = parcela.status_pagamento_prestador === 2;
-          const status = calcularStatus(parcela.data_pagamento, isPago);
-
-          return {
-            id: `prestador_${parcela.id}`,
-            tipo: "Saída",
-            descricao: `Prestador: ${os.orcamentoPrestador?.prestador?.nome} - ${os.servico?.nome} (Parcela ${parcela.numero_parcela})`,
-            valor: parseFloat(parcela.valor_prestador),
-            data: parcela.data_pagamento,
-            data_vencimento: parcela.data_pagamento,
-            categoria_id: null,
-            categoria_nome: "Pagamento Prestador",
-            origem: "pagamento_prestador",
-            prestador_id: os.orcamentoPrestador?.prestador?.id,
-            prestador_nome: os.orcamentoPrestador?.prestador?.nome,
-            servico_nome: os.servico?.nome,
-            orcamento_nome: os.orcamentoPrestador?.orcamento?.nome,
-            ...status,
-          };
-        }
-      }
-    }
-
-    if (id.toString().startsWith("comissao_")) {
-      const parcelaId = id.toString().replace("comissao_", "");
-      const parcela = await ParcelasServico.find(parcelaId);
-
-      if (parcela) {
-        const orcamentoServico = await OrcamentoServico.query()
-          .where("id", parcela.orcamento_servico_id)
-          .with("servico")
-          .with("orcamentoPrestador", (builder) => {
-            builder
-              .with("orcamento", (orcBuilder) => {
-                orcBuilder.with("cliente");
-              })
-              .with("prestador");
-          })
-          .first();
-
-        if (orcamentoServico) {
-          const os = orcamentoServico.toJSON();
-          const isPago = parcela.status_pagamento_comissao === 2;
-          const status = calcularStatus(parcela.data_pagamento, isPago);
-
-          return {
-            id: `comissao_${parcela.id}`,
-            tipo: "Entrada",
-            descricao: `Comissão: ${os.servico?.nome} - Cliente: ${os.orcamentoPrestador?.orcamento?.cliente?.nome} (Parcela ${parcela.numero_parcela})`,
-            valor: parseFloat(parcela.valor_comissao),
-            data: parcela.data_pagamento,
-            data_vencimento: parcela.data_pagamento,
-            categoria_id: null,
-            categoria_nome: "Comissão a Receber",
-            origem: "comissao_receber",
-            cliente_id: os.orcamentoPrestador?.orcamento?.cliente?.id,
-            cliente_nome: os.orcamentoPrestador?.orcamento?.cliente?.nome,
-            prestador_id: os.orcamentoPrestador?.prestador?.id,
-            prestador_nome: os.orcamentoPrestador?.prestador?.nome,
-            servico_nome: os.servico?.nome,
-            orcamento_nome: os.orcamentoPrestador?.orcamento?.nome,
-            ...status,
-          };
-        }
-      }
-    }
-
     return response.status(404).json({
       error: "Movimentação não encontrada",
     });
@@ -1623,82 +1334,6 @@ class MovimentacaoController {
           message: "Parcela de palestra atualizada com sucesso",
           data: parcelaAtualizada,
           origem: "palestra_curso",
-        });
-      }
-
-      if (id.toString().startsWith("comissao_")) {
-        const realId = id.toString().replace("comissao_", "");
-        model = await ParcelasServico.find(realId);
-
-        if (!model) {
-          return response.status(404).json({
-            error: "Comissão não encontrada",
-          });
-        }
-
-        const updateData = {};
-
-        if (data.valor_comissao !== undefined) {
-          updateData.valor_comissao = data.valor_comissao;
-        }
-
-        if (data.data_pagamento !== undefined) {
-          updateData.data_pagamento = data.data_pagamento;
-        }
-
-        if (data.status_pagamento_comissao !== undefined) {
-          updateData.status_pagamento_comissao = parseInt(
-            data.status_pagamento_comissao,
-            10,
-          );
-        }
-
-        model.merge(updateData);
-        await model.save();
-
-        return response.json({
-          success: true,
-          message: "Comissão atualizada com sucesso",
-          data: model,
-          origem: "comissao_receber",
-        });
-      }
-
-      if (id.toString().startsWith("prestador_")) {
-        const realId = id.toString().replace("prestador_", "");
-        model = await ParcelasServico.find(realId);
-
-        if (!model) {
-          return response.status(404).json({
-            error: "Pagamento a prestador não encontrado",
-          });
-        }
-
-        const updateData = {};
-
-        if (data.valor_prestador !== undefined) {
-          updateData.valor_prestador = data.valor_prestador;
-        }
-
-        if (data.data_pagamento !== undefined) {
-          updateData.data_pagamento = data.data_pagamento;
-        }
-
-        if (data.status_pagamento_prestador !== undefined) {
-          updateData.status_pagamento_prestador = parseInt(
-            data.status_pagamento_prestador,
-            10,
-          );
-        }
-
-        model.merge(updateData);
-        await model.save();
-
-        return response.json({
-          success: true,
-          message: "Pagamento a prestador atualizado com sucesso",
-          data: model,
-          origem: "pagamento_prestador",
         });
       }
 
@@ -1990,32 +1625,39 @@ class MovimentacaoController {
       });
     }
   }
-  async atualizarStatusGeralPalestra(palestraCursoId) {
+  async atualizarStatusGeralPalestra(palestraCursoId, trx = null) {
     try {
-      const parcelas = await ParcelaPalestraCurso.query()
-        .where("palestra_curso_id", palestraCursoId)
-        .fetch();
+      const queryParcelas = ParcelaPalestraCurso.query().where(
+        "palestra_curso_id",
+        palestraCursoId,
+      );
+
+      if (trx) queryParcelas.transacting(trx);
+
+      const parcelas = await queryParcelas.fetch();
 
       if (parcelas.rows.length === 0) return;
 
-      const todasPagas = parcelas.rows.every(
+      const todasPagas =
+        parcelas.rows.length > 0 &&
+        parcelas.rows.every((parcela) => parcela.status_pagamento === 2);
+
+      const algumaPendente = parcelas.rows.some(
         (parcela) => parcela.status_pagamento === 1,
       );
 
-      const algumaPendente = parcelas.rows.some(
-        (parcela) => parcela.status_pagamento === 2,
-      );
-
-      const palestra = await PalestraCurso.find(palestraCursoId);
+      const queryPalestra = PalestraCurso.query().where("id", palestraCursoId);
+      if (trx) queryPalestra.transacting(trx);
+      const palestra = await queryPalestra.first();
 
       if (palestra) {
         if (todasPagas) {
-          palestra.status_pagamento = 1;
+          palestra.status_pagamento = 2; // Pago
         } else if (algumaPendente) {
-          palestra.status_pagamento = 2;
+          palestra.status_pagamento = 1; // Pendente
         }
 
-        await palestra.save();
+        await palestra.save(trx);
       }
     } catch (error) {
       console.error("Erro ao atualizar status geral da palestra:", error);
@@ -2024,8 +1666,7 @@ class MovimentacaoController {
 
   identificarOrigemPorId(id) {
     if (id.toString().startsWith("palestra_")) return "palestra_curso";
-    if (id.toString().startsWith("prestador_")) return "pagamento_prestador";
-    if (id.toString().startsWith("comissao_")) return "comissao_receber";
+
     return null;
   }
 
@@ -2168,6 +1809,53 @@ class MovimentacaoController {
       }
     } catch (error) {
       console.error("Erro ao atualizar status da conta principal:", error);
+    }
+  }
+
+  async imprimir({ request, response }) {
+    try {
+      const filtros = request.get();
+
+      const { todosDados } = await this.buscarTodosDados(filtros);
+      const totais = await this.getTotals({ request });
+
+      const dadosImpressao = {
+        data_geracao: new Date().toLocaleString("pt-BR"),
+        filtros_aplicados: {
+          tipo: filtros.tipo || "Todos",
+          periodo:
+            filtros.data_inicio && filtros.data_fim
+              ? `${filtros.data_inicio} até ${filtros.data_fim}`
+              : filtros.data_inicio
+                ? `A partir de ${filtros.data_inicio}`
+                : filtros.data_fim
+                  ? `Até ${filtros.data_fim}`
+                  : "Todo período",
+          origem: filtros.origem || "Todas",
+        },
+        totais: {
+          total_entradas: totais.total_entradas,
+          total_saidas: totais.total_saidas,
+          saldo: totais.saldo,
+          quantidade_movimentacoes: todosDados.length,
+        },
+        movimentacoes: todosDados.map((item) => ({
+          tipo: item.tipo === "entrada" ? "Entrada" : "Saída",
+          descricao: item.descricao,
+          valor: parseFloat(item.valor || 0),
+          data: item.data,
+          categoria: item.categoria_nome || "N/A",
+          origem: item.origem,
+        })),
+      };
+
+      return response.json(dadosImpressao);
+    } catch (error) {
+      console.error("Erro ao gerar dados para impressão do fluxo:", error);
+      return response.status(500).json({
+        error: "Erro ao gerar dados para impressão",
+        details: error.message,
+      });
     }
   }
 }

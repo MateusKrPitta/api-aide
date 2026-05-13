@@ -16,6 +16,7 @@ class CreatePrestadoresTable extends Schema {
       table.string("endereco", 255).notNullable();
       table.string("numero", 10).notNullable();
       table.string("complemento", 100);
+      table.string("cep", 9).nullable();
       table.boolean("ativo").defaultTo(true);
       table.timestamps();
     });

@@ -36,9 +36,9 @@ class RelatorioPalestraCursoController {
               numero_parcela: i,
               valor: valorParcela,
               data_vencimento: dataVencimento,
-              status_pagamento: i === 1 ? data.status_pagamento : 2,
+              status_pagamento: i === 1 ? data.status_pagamento : 1, // Se for a primeira parcela, usa o status enviado, senão pendente
               data_pagamento:
-                i === 1 && data.status_pagamento == 1 ? new Date() : null,
+                i === 1 && data.status_pagamento == 2 ? new Date() : null, // Só coloca data se for Pago (2)
             },
             trx,
           );
@@ -51,7 +51,7 @@ class RelatorioPalestraCursoController {
             valor: curso.valor,
             data_vencimento: curso.data,
             status_pagamento: data.status_pagamento,
-            data_pagamento: data.status_pagamento == 1 ? new Date() : null,
+            data_pagamento: data.status_pagamento == 2 ? new Date() : null,
           },
           trx,
         );
@@ -122,7 +122,7 @@ class RelatorioPalestraCursoController {
       relatorio.merge({
         status_pagamento,
         data_pagamento:
-          status_pagamento == 1 ? data_pagamento || new Date() : null,
+          status_pagamento == 2 ? data_pagamento || new Date() : null,
       });
 
       await relatorio.save();
@@ -188,10 +188,10 @@ class RelatorioPalestraCursoController {
 
         if (palestra.parcelas && palestra.parcelas.length > 0) {
           valorPago = palestra.parcelas
-            .filter((p) => p.status_pagamento === 1)
+            .filter((p) => p.status_pagamento === 2 || p.status_pagamento === "2")
             .reduce((acc, curr) => acc + parseFloat(curr.valor), 0);
         } else {
-          if (palestra.status_pagamento === 1) {
+          if (palestra.status_pagamento === 2 || palestra.status_pagamento === "2") {
             valorPago = valorPalestra;
           }
         }
@@ -217,8 +217,12 @@ class RelatorioPalestraCursoController {
       let palestrasFiltradas = palestrasComStatus;
       if (status_pagamento) {
         const statusMap = {
+          2: "Pago",
+          1: "Pendente",
+          "2": "Pago",
+          "1": "Pendente",
           Pago: "Pago",
-          Pendente: "Pendente",
+          Pendente: "Pendente"
         };
         const statusFiltro = statusMap[status_pagamento];
         if (statusFiltro) {

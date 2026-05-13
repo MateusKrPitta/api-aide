@@ -126,6 +126,7 @@ Route.group(() => {
   Route.get("movimentacoes/totals", "MovimentacaoController.getTotals");
   Route.get("/movimentacoes", "MovimentacaoController.index");
   Route.post("/movimentacoes", "MovimentacaoController.store");
+  Route.get("/movimentacoes/imprimir", "MovimentacaoController.imprimir");
   Route.get("/movimentacoes/:id", "MovimentacaoController.show");
   Route.put("/movimentacoes/:id", "MovimentacaoController.update");
   Route.delete("/movimentacoes/:id", "MovimentacaoController.destroy");
@@ -164,6 +165,7 @@ Route.group(() => {
     "ContaReceberController.getParcelasVencidas",
   );
   Route.post("contas-receber", "ContaReceberController.store");
+  Route.get("contas-receber/imprimir", "ContaReceberController.imprimir");
   Route.get("contas-receber", "ContaReceberController.index");
   Route.get("contas-receber/:id", "ContaReceberController.show");
   Route.put(
@@ -193,4 +195,7 @@ Route.group(() => {
     "contas-receber/parcelas/:id",
     "ContaReceberController.updateParcela",
   ).middleware(["auth"]);
+
+  // Rota temporária para limpeza de financeiro travado
+  Route.get("orcamentos/:id/limpar-financeiro", "OrcamentoController.limparFinanceiro");
 }).middleware(["auth"]);

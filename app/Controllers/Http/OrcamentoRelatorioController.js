@@ -35,6 +35,7 @@ class OrcamentoRelatorioController {
             "data_inicio",
             "data_entrega",
             "data_pagamento",
+            "is_servico_aide",
           )
           .with("servico", (servicoBuilder) => {
             servicoBuilder.select("id", "nome");
@@ -52,6 +53,9 @@ class OrcamentoRelatorioController {
               "status_pagamento_comissao",
             );
           });
+      })
+      .whereHas("servicos", (builder) => {
+        builder.where("is_servico_aide", false);
       });
 
     if (filters.orcamento_id) {
@@ -155,7 +159,9 @@ class OrcamentoRelatorioController {
             "status_pagamento_comissao",
           );
         },
-      );
+      ).whereHas("servicos", (builder) => {
+        builder.where("is_servico_aide", false);
+      });
 
       if (filters.orcamento_id) {
         query.where("orcamento_id", filters.orcamento_id);
@@ -303,6 +309,7 @@ class OrcamentoRelatorioController {
       })
       .with("servicos", (builder) => {
         builder
+          .where("is_servico_aide", false)
           .select(
             "id",
             "orcamento_prestador_id",
@@ -313,6 +320,7 @@ class OrcamentoRelatorioController {
             "data_inicio",
             "data_entrega",
             "numero_parcelas",
+            "is_servico_aide",
           )
           .with("servico", (servicoBuilder) => {
             servicoBuilder.select("id", "nome");
@@ -330,6 +338,9 @@ class OrcamentoRelatorioController {
               "status_pagamento_comissao",
             );
           });
+      })
+      .whereHas("servicos", (builder) => {
+        builder.where("is_servico_aide", false);
       });
 
     if (filters.data_inicio && filters.data_fim) {
@@ -487,6 +498,7 @@ class OrcamentoRelatorioController {
           valor_prestador: parseFloat(servico.valor_prestador || 0).toFixed(2),
           comissao: parseFloat(servico.comissao || 0).toFixed(2),
           numero_parcelas: servico.numero_parcelas || 0,
+          is_servico_aide: servico.is_servico_aide || false,
 
           status_prestador: statusPrestador,
           status_prestador_codigo: statusPrestadorCodigo,
@@ -818,6 +830,7 @@ class OrcamentoRelatorioController {
         data_inicio: servicoJSON.data_inicio,
         data_entrega: servicoJSON.data_entrega,
         data_pagamento: servicoJSON.data_pagamento,
+        is_servico_aide: servicoJSON.is_servico_aide || false,
         parcelas: servicoJSON.parcelas
           ? servicoJSON.parcelas.map((parcela) => ({
               id: parcela.id,
@@ -957,6 +970,7 @@ class OrcamentoRelatorioController {
             "data_inicio",
             "data_entrega",
             "data_pagamento",
+            "is_servico_aide",
           )
           .with("servico", (servicoBuilder) => {
             servicoBuilder.select("id", "nome");

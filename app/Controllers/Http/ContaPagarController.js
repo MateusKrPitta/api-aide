@@ -23,8 +23,11 @@ class ContaPagarController {
         "contas_pagar.custo_variavel",
         "contas_pagar.created_at",
         "categorias.nome as categoria_nome",
+        "clientes.nome as cliente_nome",
       )
-      .leftJoin("categorias", "contas_pagar.categoria_id", "categorias.id");
+      .leftJoin("categorias", "contas_pagar.categoria_id", "categorias.id")
+      .leftJoin("orcamentos", "contas_pagar.orcamento_id", "orcamentos.id")
+      .leftJoin("clientes", "orcamentos.cliente_id", "clientes.id");
 
     if (filters.search) {
       query.where("contas_pagar.nome", "LIKE", `%${filters.search}%`);
@@ -97,45 +100,42 @@ class ContaPagarController {
     const contasFormatadas = contas.toJSON();
     contasFormatadas.data = contasFormatadas.data.map((conta) => {
       const parcelas = conta.parcelas || [];
+      let statusPagamento;
 
-      if (parcelas.length === 0) {
-        let statusPagamento;
-        if (conta.status_geral === 2) {
+      if (conta.custo_variavel) {
+        const statusMap = {
+          1: "Pendente",
+          2: "Pago",
+          3: "Em andamento",
+        };
+        statusPagamento = statusMap[conta.status_geral] || "Pendente";
+      } else if (parcelas.length > 0) {
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+
+        const todasPagas = parcelas.every((p) => p.status === 2);
+        const temAtrasadas = parcelas.some(
+          (p) => p.status === 1 && new Date(p.data_vencimento) < hoje,
+        );
+        const temPagas = parcelas.some((p) => p.status === 2);
+        const temEmAndamento = parcelas.some((p) => p.status === 3);
+
+        if (todasPagas) {
           statusPagamento = "Pago";
-        } else if (conta.status_geral === 3) {
+        } else if (temAtrasadas) {
+          statusPagamento = "Atrasado";
+        } else if (temEmAndamento || temPagas) {
           statusPagamento = "Em andamento";
         } else {
           statusPagamento = "Pendente";
         }
-
-        return {
-          id: conta.id,
-          nome: conta.nome,
-          data: conta.data_inicio,
-          categoria_id: conta.categoria_id,
-          categoria: conta.categoria_nome || "Não categorizado",
-          valor: conta.valor_total,
-          status_pagamento: statusPagamento,
-        };
-      }
-
-      const todasPagas = parcelas.every((p) => p.status === 2);
-      const temPagas = parcelas.some((p) => p.status === 2);
-      const temPendentes = parcelas.some((p) => p.status === 1);
-      const temEmAndamento = parcelas.some((p) => p.status === 3);
-
-      let statusPagamento;
-
-      if (todasPagas) {
-        statusPagamento = "Pago";
-      } else if (temEmAndamento) {
-        statusPagamento = "Em andamento";
-      } else if (temPagas && temPendentes) {
-        statusPagamento = "Em andamento";
-      } else if (temPagas && !temPendentes) {
-        statusPagamento = "Em andamento";
       } else {
-        statusPagamento = "Pendente";
+        const statusMap = {
+          1: "Pendente",
+          2: "Pago",
+          3: "Em andamento",
+        };
+        statusPagamento = statusMap[conta.status_geral] || "Pendente";
       }
 
       return {
@@ -146,6 +146,7 @@ class ContaPagarController {
         categoria: conta.categoria_nome || "Não categorizado",
         valor: conta.valor_total,
         status_pagamento: statusPagamento,
+        cliente_nome: conta.cliente_nome,
       };
     });
 
@@ -174,6 +175,7 @@ class ContaPagarController {
         })
         .with("categoria")
         .with("prestador")
+        .with("orcamento.cliente")
         .where("id", id)
         .first();
 
@@ -189,6 +191,7 @@ class ContaPagarController {
       contaJson.categoria_nome =
         contaJson.categoria?.nome || "Não categorizado";
       contaJson.prestador_nome = contaJson.prestador?.nome || null;
+      contaJson.cliente_nome = contaJson.orcamento?.cliente?.nome || null;
 
       const parcelasFormatadas = parcelas.map((parcela) => ({
         id: parcela.id,
@@ -206,20 +209,21 @@ class ContaPagarController {
         forma_pagamento: parcela.forma_pagamento,
       }));
 
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
       const todasPagas = parcelas.every((p) => p.status === 2);
+      const temAtrasadas = parcelas.some((p) => p.status === 1 && new Date(p.data_vencimento) < hoje);
       const temPagas = parcelas.some((p) => p.status === 2);
-      const temPendentes = parcelas.some((p) => p.status === 1);
       const temEmAndamento = parcelas.some((p) => p.status === 3);
 
       let statusPagamento;
 
       if (todasPagas) {
         statusPagamento = "Pago";
-      } else if (temEmAndamento) {
-        statusPagamento = "Em andamento";
-      } else if (temPagas && temPendentes) {
-        statusPagamento = "Em andamento";
-      } else if (temPagas && !temPendentes) {
+      } else if (temAtrasadas) {
+        statusPagamento = "Atrasado";
+      } else if (temEmAndamento || temPagas) {
         statusPagamento = "Em andamento";
       } else {
         statusPagamento = "Pendente";
@@ -253,6 +257,7 @@ class ContaPagarController {
           .length,
         parcelas_andamento: parcelasFormatadas.filter((p) => p.status === 3)
           .length,
+        cliente_nome: contaJson.cliente_nome,
         valor_pago: parcelasFormatadas
           .filter((p) => p.status === 2)
           .reduce((acc, p) => acc + p.valor, 0),
@@ -434,6 +439,7 @@ class ContaPagarController {
   }
 
   async updateParcela({ params, request, response }) {
+    const trx = await Database.beginTransaction();
     try {
       const { id } = params;
       const { status, forma_pagamento, data_pagamento } = request.only([
@@ -444,12 +450,14 @@ class ContaPagarController {
 
       const parcela = await ContaPagarParcela.findOrFail(id);
       parcela.merge({ status, forma_pagamento, data_pagamento });
-      await parcela.save();
+      await parcela.save(trx);
 
-      await this.atualizarStatusConta(parcela.conta_pagar_id);
+      await this.atualizarStatusConta(parcela.conta_pagar_id, trx);
 
+      await trx.commit();
       return parcela;
     } catch (error) {
+      await trx.rollback();
       console.error("Erro ao atualizar parcela:", error);
       return response.status(500).json({
         error: "Erro ao atualizar parcela",
@@ -458,23 +466,43 @@ class ContaPagarController {
     }
   }
 
-  async atualizarStatusConta(contaId) {
-    const conta = await ContaPagar.findOrFail(contaId);
-    const parcelas = await conta.parcelas().fetch();
+  async updateParcelaIndividual({ params, request, response }) {
+    return this.updateParcela({ params, request, response });
+  }
 
-    const todasPagas = parcelas.rows.every((p) => p.status === 2);
-    const algumaEmAndamento = parcelas.rows.some((p) => p.status === 3);
-    const algumaPaga = parcelas.rows.some((p) => p.status === 2);
+  async atualizarStatusConta(contaId, trx = null) {
+    const query = ContaPagar.query().where("id", contaId);
+    if (trx) query.transacting(trx);
+    const conta = await query.first();
 
-    if (todasPagas) {
-      conta.status_geral = 2;
-    } else if (algumaEmAndamento || algumaPaga) {
-      conta.status_geral = 3; 
-    } else {
-      conta.status_geral = 1;
+    if (!conta) return;
+
+    const queryParcelas = ContaPagarParcela.query().where(
+      "conta_pagar_id",
+      contaId,
+    );
+    if (trx) queryParcelas.transacting(trx);
+    const parcelas = await queryParcelas.fetch();
+    const parcelasArray = parcelas.rows || [];
+
+    if (parcelasArray.length === 0) {
+      // Se não tem parcelas e é variável, mantém o status atual ou pendente
+      return;
     }
 
-    await conta.save();
+    const todasPagas = parcelasArray.every((p) => Number(p.status) === 2);
+    const algumaPaga = parcelasArray.some((p) => Number(p.status) === 2);
+    const algumaEmAndamento = parcelasArray.some((p) => Number(p.status) === 3);
+
+    if (todasPagas) {
+      conta.status_geral = 2; // Pago
+    } else if (algumaPaga || algumaEmAndamento) {
+      conta.status_geral = 3; // Em andamento
+    } else {
+      conta.status_geral = 1; // Pendente
+    }
+
+    await conta.save(trx);
   }
 
   async update({ params, request, response }) {
@@ -502,21 +530,33 @@ class ContaPagarController {
       conta.merge(data);
       await conta.save(trx);
 
-      if (conta.custo_fixo) {
-        await ContaPagarParcela.query().where("conta_pagar_id", id).delete(trx);
-        await this.gerarParcelas(conta, trx);
+      // Sincroniza o status das parcelas com o status geral da conta
+      if (data.status_geral) {
+        const updateData = {
+          status: data.status_geral,
+        };
 
         if (data.status_geral === 2) {
-          await ContaPagarParcela.query()
-            .where("conta_pagar_id", id)
-            .transacting(trx)
-            .update({
-              status: 2,
-              data_pagamento:
-                data.data_pagamento || new Date().toISOString().split("T")[0],
-            });
+          updateData.data_pagamento =
+            data.data_pagamento || new Date().toISOString().split("T")[0];
+        } else {
+          // Se não estiver pago, remove a data de pagamento das parcelas
+          updateData.data_pagamento = null;
         }
+
+        await ContaPagarParcela.query()
+          .where("conta_pagar_id", id)
+          .transacting(trx)
+          .update(updateData);
+      }
+
+      if (conta.custo_fixo) {
+        // Para custos fixos, regeneramos as parcelas se houve mudança estrutural
+        // Ou se mudou de variável para fixo
+        await ContaPagarParcela.query().where("conta_pagar_id", id).delete(trx);
+        await this.gerarParcelas(conta, trx);
       } else if (!conta.custo_fixo && eraCustoFixo) {
+        // Se mudou de fixo para variável, remove as parcelas de custo fixo
         await ContaPagarParcela.query().where("conta_pagar_id", id).delete(trx);
       }
 
@@ -611,9 +651,17 @@ class ContaPagarController {
 
     try {
       const { id } = params;
+      const conta = await ContaPagar.findOrFail(id);
+
+      if (conta.orcamento_id) {
+        return response.status(400).json({
+          success: false,
+          message:
+            "Este registro está vinculado a um orçamento e não pode ser excluído diretamente. Por favor, gerencie a exclusão através do módulo de Orçamentos.",
+        });
+      }
 
       await ContaPagarParcela.query().where("conta_pagar_id", id).delete(trx);
-      const conta = await ContaPagar.findOrFail(id);
       await conta.delete(trx);
 
       await trx.commit();
@@ -729,38 +777,30 @@ class ContaPagarController {
       `;
 
       let params = [];
-      let paramCount = 1;
-
       if (filters.data_inicio && filters.data_fim) {
-        sql += ` AND cp.data_inicio BETWEEN $${paramCount} AND $${paramCount + 1}`;
+        sql += ` AND cp.data_inicio BETWEEN ? AND ?`;
         params.push(filters.data_inicio, filters.data_fim);
-        paramCount += 2;
       } else if (filters.data_inicio) {
-        sql += ` AND cp.data_inicio >= $${paramCount}`;
+        sql += ` AND cp.data_inicio >= ?`;
         params.push(filters.data_inicio);
-        paramCount += 1;
       } else if (filters.data_fim) {
-        sql += ` AND cp.data_inicio <= $${paramCount}`;
+        sql += ` AND cp.data_inicio <= ?`;
         params.push(filters.data_fim);
-        paramCount += 1;
       }
 
       if (filters.status_geral) {
-        sql += ` AND cp.status_geral = $${paramCount}`;
+        sql += ` AND cp.status_geral = ?`;
         params.push(filters.status_geral);
-        paramCount += 1;
       }
 
       if (filters.categoria_id) {
-        sql += ` AND cp.categoria_id = $${paramCount}`;
+        sql += ` AND cp.categoria_id = ?`;
         params.push(filters.categoria_id);
-        paramCount += 1;
       }
 
       if (filters.prestador_id) {
-        sql += ` AND cp.prestador_id = $${paramCount}`;
+        sql += ` AND cp.prestador_id = ?`;
         params.push(filters.prestador_id);
-        paramCount += 1;
       }
 
       const result = await Database.raw(sql, params);
@@ -1140,44 +1180,35 @@ class ContaPagarController {
   `;
 
     let params = [];
-    let paramCount = 1;
-
     if (filters.data_inicio && filters.data_fim) {
-      sql += ` AND cp.data_inicio BETWEEN $${paramCount} AND $${paramCount + 1}`;
+      sql += ` AND cp.data_inicio BETWEEN ? AND ?`;
       params.push(filters.data_inicio, filters.data_fim);
-      paramCount += 2;
     } else if (filters.data_inicio) {
-      sql += ` AND cp.data_inicio >= $${paramCount}`;
+      sql += ` AND cp.data_inicio >= ?`;
       params.push(filters.data_inicio);
-      paramCount += 1;
     } else if (filters.data_fim) {
-      sql += ` AND cp.data_inicio <= $${paramCount}`;
+      sql += ` AND cp.data_inicio <= ?`;
       params.push(filters.data_fim);
-      paramCount += 1;
     }
 
     if (filters.status_geral) {
-      sql += ` AND cp.status_geral = $${paramCount}`;
+      sql += ` AND cp.status_geral = ?`;
       params.push(filters.status_geral);
-      paramCount += 1;
     }
 
     if (filters.categoria_id) {
-      sql += ` AND cp.categoria_id = $${paramCount}`;
+      sql += ` AND cp.categoria_id = ?`;
       params.push(filters.categoria_id);
-      paramCount += 1;
     }
 
     if (filters.prestador_id) {
-      sql += ` AND cp.prestador_id = $${paramCount}`;
+      sql += ` AND cp.prestador_id = ?`;
       params.push(filters.prestador_id);
-      paramCount += 1;
     }
 
     if (filters.search) {
-      sql += ` AND cp.nome LIKE $${paramCount}`;
+      sql += ` AND cp.nome LIKE ?`;
       params.push(`%${filters.search}%`);
-      paramCount += 1;
     }
 
     const result = await Database.raw(sql, params);

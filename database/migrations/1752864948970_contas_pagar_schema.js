@@ -40,6 +40,9 @@ class CreateContasPagarSchema extends Schema {
       // Valores
       table.decimal("valor_mensal", 15, 2).nullable(); // Para custos fixos
       table.decimal("valor_total", 15, 2).notNullable();
+      table.date("data_pagamento").nullable();
+      table.integer("forma_pagamento").unsigned().nullable();
+      table.integer("quantidade_parcelas").unsigned().defaultTo(1);
 
       table.timestamps();
     });

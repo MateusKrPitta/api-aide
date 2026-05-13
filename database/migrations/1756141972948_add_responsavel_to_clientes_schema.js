@@ -3,11 +3,13 @@
 const Schema = use("Schema");
 
 class AddResponsavelToClientesTable extends Schema {
-  up() {
-    this.table("clientes", (table) => {
-      // Adiciona a coluna responsavel
-      table.string("responsavel", 100).nullable();
-    });
+  async up() {
+    const exists = await this.hasColumn("clientes", "responsavel");
+    if (!exists) {
+      this.table("clientes", (table) => {
+        table.string("responsavel", 100).nullable();
+      });
+    }
   }
 
   down() {

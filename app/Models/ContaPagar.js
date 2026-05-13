@@ -32,6 +32,7 @@ class ContaPagar extends Model {
       "status_pagamento",
       "data_pagamento",
       "forma_pagamento",
+      "orcamento_id",
     ];
   }
 
@@ -56,6 +57,10 @@ class ContaPagar extends Model {
 
   categoria() {
     return this.belongsTo("App/Models/Categoria");
+  }
+
+  orcamento() {
+    return this.belongsTo("App/Models/Orcamento");
   }
 }
 
