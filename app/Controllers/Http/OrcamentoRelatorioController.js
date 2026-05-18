@@ -1021,66 +1021,6 @@ class OrcamentoRelatorioController {
       hoje.setHours(0, 0, 0, 0);
       const hojeStr = hoje.toISOString().split("T")[0];
 
-      const ParcelasServico = use("App/Models/ParcelasServico");
-      const OrcamentoServico = use("App/Models/OrcamentoServico");
-
-      const parcelasPrestadorVencidas = await ParcelasServico.query()
-        .where("status_pagamento_prestador", 1)
-        .where("data_pagamento", "<", hojeStr)
-        .whereNotNull("data_pagamento")
-        .orderBy("data_pagamento", "asc")
-        .fetch();
-
-      const parcelasJSON = parcelasPrestadorVencidas.toJSON();
-      const prestadoresFormatados = [];
-
-      for (const parcela of parcelasJSON) {
-        const orcamentoServico = await OrcamentoServico.query()
-          .where("id", parcela.orcamento_servico_id)
-          .with("servico")
-          .with("orcamentoPrestador", (opBuilder) => {
-            opBuilder
-              .with("orcamento", (orcBuilder) => {
-                orcBuilder.with("cliente");
-              })
-              .with("prestador");
-          })
-          .first();
-
-        if (orcamentoServico) {
-          const servicoJSON = orcamentoServico.toJSON();
-          const orcamentoPrestador = servicoJSON.orcamentoPrestador;
-          const servico = servicoJSON.servico;
-          const orcamento = orcamentoPrestador?.orcamento;
-          const cliente = orcamento?.cliente;
-          const prestador = orcamentoPrestador?.prestador;
-
-          const dataVencimento = new Date(parcela.data_pagamento);
-          const diasVencidos = Math.floor(
-            (hoje - dataVencimento) / (1000 * 60 * 60 * 24),
-          );
-
-          prestadoresFormatados.push({
-            id: parcela.id,
-            tipo: "prestador",
-            titulo: servico?.nome || "Serviço",
-            descricao: `Parcela ${parcela.numero_parcela} - ${servico?.nome || ""}`,
-            cliente_nome: cliente?.nome || null,
-            prestador_nome: prestador?.nome || null,
-            prestador_id: prestador?.id || null,
-            valor: parseFloat(parcela.valor_prestador || 0),
-            data_vencimento: parcela.data_pagamento,
-            dias_vencidos: diasVencidos,
-            orcamento_nome: orcamento?.nome || null,
-            servico_nome: servico?.nome || null,
-            numero_parcela: parcela.numero_parcela,
-            status: "pendente",
-            origem: "prestador",
-            pode_pagar: true,
-          });
-        }
-      }
-
       const ContaPagarParcela = use("App/Models/ContaPagarParcela");
 
       const parcelasFixasVencidas = await ContaPagarParcela.query()
@@ -1163,7 +1103,6 @@ class OrcamentoRelatorioController {
         }));
 
       const todasPendencias = [
-        ...prestadoresFormatados,
         ...contasFixasFormatadas,
         ...contasVariaveisFormatadas,
       ];
@@ -1172,10 +1111,7 @@ class OrcamentoRelatorioController {
         (a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento),
       );
 
-      const totalValorPrestadores = prestadoresFormatados.reduce(
-        (acc, item) => acc + item.valor,
-        0,
-      );
+
       const totalValorContasFixas = contasFixasFormatadas.reduce(
         (acc, item) => acc + item.valor,
         0,
@@ -1193,16 +1129,11 @@ class OrcamentoRelatorioController {
             quantidade_total: todasPendencias.length,
             valor_total: parseFloat(
               (
-                totalValorPrestadores +
                 totalValorContasFixas +
                 totalValorContasVariaveis
               ).toFixed(2),
             ),
             por_origem: {
-              prestadores: {
-                quantidade: prestadoresFormatados.length,
-                valor: parseFloat(totalValorPrestadores.toFixed(2)),
-              },
               contas_fixas: {
                 quantidade: contasFixasFormatadas.length,
                 valor: parseFloat(totalValorContasFixas.toFixed(2)),

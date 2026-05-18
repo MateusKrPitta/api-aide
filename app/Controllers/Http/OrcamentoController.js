@@ -198,9 +198,10 @@ class OrcamentoController {
               numero_parcelas: servico.numero_parcelas,
               valor_total: servico.valor_total,
               valor_parcela: servico.valor_parcela,
-              comissao: (servico.is_servico_aide === true || servico.is_servico_aide === "true") ? servico.valor_total : servico.comissao,
-              valor_prestador: (servico.is_servico_aide === true || servico.is_servico_aide === "true") ? 0 : servico.valor_prestador,
-              is_servico_aide: (servico.is_servico_aide === true || servico.is_servico_aide === "true"),
+              destino: servico.destino || 'receber',
+              comissao: 0,
+              valor_prestador: 0,
+              is_servico_aide: false,
               data_inicio: servico.data_inicio,
               data_entrega: servico.data_entrega,
               data_pagamento: servico.data_pagamento,
@@ -210,34 +211,28 @@ class OrcamentoController {
 
           const totalParcelas = novoServico.numero_parcelas || 1;
           const valorTotal = parseFloat(novoServico.valor_total);
-          const isAide = novoServico.is_servico_aide;
-
           const valorParcela = valorTotal / totalParcelas;
-          const valorPrestadorParcela = isAide
-            ? 0
-            : parseFloat(novoServico.valor_prestador) / totalParcelas;
-          const valorComissaoParcela = isAide
-            ? valorTotal / totalParcelas
-            : parseFloat(novoServico.comissao) / totalParcelas;
 
-          // Criar Conta a Receber (Entrada Total do Cliente)
-          const cliente = await orcamento.cliente().fetch();
-          const contaReceber = await ContaReceber.create({
-            nome: `Serviço: ${servicoNome} - Cliente: ${cliente.nome}`,
-            custo_fixo: totalParcelas > 1,
-            custo_variavel: totalParcelas === 1,
-            categoria_id: servico.categoria_id || null,
-            data_inicio: novoServico.data_inicio,
-            valor_total: valorTotal,
-            valor_mensal: totalParcelas > 1 ? valorParcela.toFixed(2) : valorTotal,
-            status: 1, // Pendente
-            forma_pagamento: novoServico.metodo_pagamento,
-            orcamento_id: orcamento.id
-          }, trx);
-
-          // Criar Conta a Pagar (Saída para o Prestador) se não for Aidê
+          let contaReceber = null;
           let contaPagar = null;
-          if (!isAide && novoServico.valor_prestador > 0) {
+
+          if (servico.destino === 'receber') {
+            // Criar Conta a Receber (Entrada Total do Cliente)
+            const cliente = await orcamento.cliente().fetch();
+            contaReceber = await ContaReceber.create({
+              nome: `Serviço: ${servicoNome} - Cliente: ${cliente.nome}`,
+              custo_fixo: totalParcelas > 1,
+              custo_variavel: totalParcelas === 1,
+              categoria_id: servico.categoria_id || null,
+              data_inicio: novoServico.data_inicio,
+              valor_total: valorTotal,
+              valor_mensal: totalParcelas > 1 ? valorParcela.toFixed(2) : valorTotal,
+              status: 1, // Pendente
+              forma_pagamento: novoServico.metodo_pagamento,
+              orcamento_id: orcamento.id
+            }, trx);
+          } else if (servico.destino === 'pagar') {
+            // Criar Conta a Pagar (Saída para o Prestador)
             const prestadorModel = await use("App/Models/Prestador").find(prestador.prestador_id);
             const prestadorNome = prestadorModel ? prestadorModel.nome : `ID: ${prestador.prestador_id}`;
 
@@ -247,7 +242,7 @@ class OrcamentoController {
               custo_variavel: totalParcelas === 1,
               prestador_id: prestador.prestador_id,
               data_inicio: novoServico.data_inicio,
-              valor_total: parseFloat(novoServico.valor_prestador),
+              valor_total: valorTotal,
               status_geral: 1, // Pendente
               categoria_id: null,
               orcamento_id: orcamento.id
@@ -265,8 +260,8 @@ class OrcamentoController {
                 numero_parcela: i + 1,
                 data_pagamento: dataVencimento,
                 valor_parcela: valorParcela.toFixed(2),
-                valor_prestador: valorPrestadorParcela.toFixed(2),
-                valor_comissao: valorComissaoParcela.toFixed(2),
+                valor_prestador: 0,
+                valor_comissao: 0,
                 status_pagamento_prestador: 1,
                 status_pagamento_comissao: 1,
               },
@@ -274,13 +269,15 @@ class OrcamentoController {
             );
 
             // Parcela de Conta a Receber
-            await ContaReceberParcela.create({
-              conta_receber_id: contaReceber.id,
-              descricao: `Parcela ${i + 1}/${totalParcelas}`,
-              data_vencimento: dataVencimento,
-              valor: valorParcela.toFixed(2),
-              status_pagamento: 1
-            }, trx);
+            if (contaReceber) {
+              await ContaReceberParcela.create({
+                conta_receber_id: contaReceber.id,
+                descricao: `Parcela ${i + 1}/${totalParcelas}`,
+                data_vencimento: dataVencimento,
+                valor: valorParcela.toFixed(2),
+                status_pagamento: 1
+              }, trx);
+            }
 
             // Parcela de Conta a Pagar
             if (contaPagar) {
@@ -288,7 +285,7 @@ class OrcamentoController {
                 conta_pagar_id: contaPagar.id,
                 descricao: `Parcela ${i + 1}/${totalParcelas}`,
                 data_vencimento: dataVencimento,
-                valor: valorPrestadorParcela.toFixed(2),
+                valor: valorParcela.toFixed(2),
                 status: 1
               }, trx);
             }
@@ -545,9 +542,10 @@ class OrcamentoController {
                   numero_parcelas: servico.numero_parcelas,
                   valor_total: servico.valor_total,
                   valor_parcela: servico.valor_parcela,
-                  comissao: servico.is_servico_aide ? servico.valor_total : servico.comissao,
-                  valor_prestador: servico.is_servico_aide ? 0 : servico.valor_prestador,
-                  is_servico_aide: servico.is_servico_aide || false,
+                  destino: servico.destino || 'receber',
+                  comissao: 0,
+                  valor_prestador: 0,
+                  is_servico_aide: false,
                   data_inicio: servico.data_inicio,
                   data_entrega: servico.data_entrega,
                   data_pagamento: servico.data_pagamento,
@@ -557,37 +555,32 @@ class OrcamentoController {
 
               const totalParcelas = novoServico.numero_parcelas || 1;
               const valorTotal = parseFloat(novoServico.valor_total);
-              const isAide = novoServico.is_servico_aide;
 
               const valorParcela = valorTotal / totalParcelas;
-              const valorPrestadorParcela = isAide
-                ? 0
-                : parseFloat(novoServico.valor_prestador) / totalParcelas;
-              const valorComissaoParcela = isAide
-                ? valorTotal / totalParcelas
-                : parseFloat(novoServico.comissao) / totalParcelas;
 
               const servicoModel = await use("App/Models/Servico").find(servico.servico_id);
               const servicoNome = servicoModel ? servicoModel.nome : "Serviço";
               const cliente = await orcamento.cliente().fetch();
 
-              // Criar Conta a Receber (Entrada Total do Cliente)
-              const contaReceber = await ContaReceber.create({
-                nome: `Serviço: ${servicoNome} - Cliente: ${cliente.nome}`,
-                custo_fixo: totalParcelas > 1,
-                custo_variavel: totalParcelas === 1,
-                categoria_id: servico.categoria_id || null,
-                data_inicio: novoServico.data_inicio,
-                valor_total: valorTotal,
-                valor_mensal: totalParcelas > 1 ? valorParcela.toFixed(2) : valorTotal,
-                status: 1, // Pendente
-                forma_pagamento: novoServico.metodo_pagamento,
-                orcamento_id: orcamento.id
-              }, trx);
-
-              // Criar Conta a Pagar (Saída para o Prestador) se não for Aidê
+              let contaReceber = null;
               let contaPagar = null;
-              if (!isAide && novoServico.valor_prestador > 0) {
+
+              if (servico.destino === 'receber') {
+                // Criar Conta a Receber (Entrada Total do Cliente)
+                contaReceber = await ContaReceber.create({
+                  nome: `Serviço: ${servicoNome} - Cliente: ${cliente.nome}`,
+                  custo_fixo: totalParcelas > 1,
+                  custo_variavel: totalParcelas === 1,
+                  categoria_id: servico.categoria_id || null,
+                  data_inicio: novoServico.data_inicio,
+                  valor_total: valorTotal,
+                  valor_mensal: totalParcelas > 1 ? valorParcela.toFixed(2) : valorTotal,
+                  status: 1, // Pendente
+                  forma_pagamento: novoServico.metodo_pagamento,
+                  orcamento_id: orcamento.id
+                }, trx);
+              } else if (servico.destino === 'pagar') {
+                // Criar Conta a Pagar (Saída para o Prestador)
                 const prestadorModel = await use("App/Models/Prestador").find(prestador.prestador_id);
                 const prestadorNome = prestadorModel ? prestadorModel.nome : `ID: ${prestador.prestador_id}`;
 
@@ -597,7 +590,7 @@ class OrcamentoController {
                   custo_variavel: totalParcelas === 1,
                   prestador_id: prestador.prestador_id,
                   data_inicio: novoServico.data_inicio,
-                  valor_total: parseFloat(novoServico.valor_prestador),
+                  valor_total: valorTotal,
                   status_geral: 1, // Pendente
                   categoria_id: null,
                   orcamento_id: orcamento.id
@@ -615,8 +608,8 @@ class OrcamentoController {
                     numero_parcela: i + 1,
                     data_pagamento: dataVencimento,
                     valor_parcela: valorParcela.toFixed(2),
-                    valor_prestador: valorPrestadorParcela.toFixed(2),
-                    valor_comissao: valorComissaoParcela.toFixed(2),
+                    valor_prestador: 0,
+                    valor_comissao: 0,
                     status_pagamento_prestador: 1,
                     status_pagamento_comissao: 1,
                   },
@@ -624,13 +617,15 @@ class OrcamentoController {
                 );
 
                 // Parcela de Conta a Receber
-                await ContaReceberParcela.create({
-                  conta_receber_id: contaReceber.id,
-                  descricao: `Parcela ${i + 1}/${totalParcelas}`,
-                  data_vencimento: dataVencimento,
-                  valor: valorParcela.toFixed(2),
-                  status_pagamento: 1
-                }, trx);
+                if (contaReceber) {
+                  await ContaReceberParcela.create({
+                    conta_receber_id: contaReceber.id,
+                    descricao: `Parcela ${i + 1}/${totalParcelas}`,
+                    data_vencimento: dataVencimento,
+                    valor: valorParcela.toFixed(2),
+                    status_pagamento: 1
+                  }, trx);
+                }
 
                 // Parcela de Conta a Pagar
                 if (contaPagar) {
@@ -638,7 +633,7 @@ class OrcamentoController {
                     conta_pagar_id: contaPagar.id,
                     descricao: `Parcela ${i + 1}/${totalParcelas}`,
                     data_vencimento: dataVencimento,
-                    valor: valorPrestadorParcela.toFixed(2),
+                    valor: valorParcela.toFixed(2),
                     status: 1
                   }, trx);
                 }
