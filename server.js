@@ -1,6 +1,21 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 process.env.HOST = process.env.HOST || "0.0.0.0";
+process.env.ENV_SILENT = "true";
+
+// Garante que o arquivo .env exista no container para o Adonis não travar
+const envPath = path.join(__dirname, ".env");
+if (!fs.existsSync(envPath)) {
+  try {
+    fs.writeFileSync(envPath, "");
+  } catch (e) {
+    console.warn("Nao foi possivel criar .env silencioso:", e.message);
+  }
+}
+
 if (process.env.RAILWAY_ENVIRONMENT) {
   process.env.NODE_ENV = process.env.NODE_ENV || "production";
 } else {
