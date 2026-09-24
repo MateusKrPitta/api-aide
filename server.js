@@ -1,4 +1,6 @@
 "use strict";
+
+process.env.HOST = process.env.HOST || "0.0.0.0";
 if (process.env.RAILWAY_ENVIRONMENT) {
   process.env.NODE_ENV = process.env.NODE_ENV || "production";
 } else {
