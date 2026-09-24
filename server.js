@@ -5,6 +5,7 @@ const path = require("path");
 
 process.env.HOST = process.env.HOST || "0.0.0.0";
 process.env.ENV_SILENT = "true";
+process.env.APP_KEY = process.env.APP_KEY || "aide_secret_app_key_32_characters_random!";
 
 // Garante que o arquivo .env exista no container para o Adonis não travar
 const envPath = path.join(__dirname, ".env");
