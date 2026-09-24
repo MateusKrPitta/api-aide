@@ -5,9 +5,10 @@
   "description": "Adonisjs boilerplate for API server with pre-configured JWT",
   "main": "index.js",
   "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
     "migrate": "node ace migration:run --force",
-    "setup": "node ace migration:run --force && npm start",
-    "start": "sh start.sh"
+    "setup": "node ace migration:run --force && npm start"
   },
   "keywords": [
     "adonisjs",
